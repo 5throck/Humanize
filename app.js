@@ -354,8 +354,9 @@
         { role: 'user', content: text }
       ]
     };
-    // Reasoning models (o1/o3/o4, gpt-5*) reject the temperature parameter.
-    if (!/(^|\/)(o[134](-|$)|gpt-5)/i.test(cfg.model)) body.temperature = 0.4;
+    // No temperature on purpose: some models reject it outright
+    // ("temperature is deprecated for this model", HTTP 400) and polished
+    // output doesn't need sampling control.
     // Z.ai GLM reasons by default; its thinking can consume the whole output
     // budget (empty content, finish_reason "length"). For GLM on Zhipu-family
     // endpoints, disable thinking and size the output cap with the input.

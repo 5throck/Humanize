@@ -392,7 +392,7 @@ async function forwardChat(req: http.IncomingMessage, res: http.ServerResponse, 
 
   // Provider: explicit LLM_PROVIDER (anthropic/gemini) wins, else host detection.
   const provider = providerForTarget(host);
-  const rawBody = await readBody(req);
+  let rawBody = await readBody(req);
 
   const headers: Record<string, string> = {
     "Content-Type": req.headers["content-type"] ?? "application/json",
@@ -403,6 +403,14 @@ async function forwardChat(req: http.IncomingMessage, res: http.ServerResponse, 
     openaiBody = JSON.parse(rawBody.toString("utf-8") || "{}");
   } catch {
     openaiBody = {};
+  }
+
+  // Some models reject the parameter outright ("temperature is deprecated
+  // for this model", HTTP 400) and polishing doesn't need sampling control —
+  // strip it so a cached browser script cannot break a request either.
+  if (openaiBody.temperature !== undefined) {
+    delete openaiBody.temperature;
+    rawBody = Buffer.from(JSON.stringify(openaiBody), "utf-8");
   }
 
   let requestUrl = chatUrl.toString();
