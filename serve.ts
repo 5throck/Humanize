@@ -293,11 +293,12 @@ function toNativeRequest(
   const messages = openai.messages ?? [];
   if (provider === "anthropic") {
     const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
-    // GLM (Z.ai) reasons by default, and its thinking can burn the whole
-    // output budget before any text is written — polish requests came back
-    // with empty content and stop_reason "max_tokens". Keep thinking off
-    // (real Anthropic defaults to off as well) and scale the cap with the
-    // input so long texts leave room for the polished output.
+    // No thinking parameter on purpose: real Anthropic's newest models reject
+    // thinking.type="disabled" outright, and omitting it leaves Claude's
+    // default (thinking off) intact. Note the trade-off — GLM on Z.ai's
+    // anthropic endpoint then reasons by default and can burn the output
+    // budget; the input-scaled max_tokens below and the app's
+    // length-truncation error hint are the mitigations.
     const inputChars = messages.reduce((n, m) => n + m.content.length, 0);
     return {
       url,
@@ -310,7 +311,6 @@ function toNativeRequest(
         model,
         max_tokens: openai.max_tokens ?? Math.min(131072, Math.max(8192, inputChars * 2)), // glm-5.3 output cap is 131072
         temperature: openai.temperature,
-        thinking: { type: "disabled" },
         system: system || undefined,
         messages: messages
           .filter((m) => m.role !== "system")
