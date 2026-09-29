@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Smoke test: rules ↔ references.json registry consistency
+      - name: Run smoke tests
+        run: bun test.mjs
+
+      # Syntax check for the browser script (plain JS, no bundler)
+      - name: Syntax-check app.js
+        run: node --check app.js
+
+      # serve.ts must type-strip/build cleanly (bun runs it without a build
+      # step, so this is the closest CI-safe equivalent of "server boots")
+      - name: Build-check serve.ts
+        run: bun build serve.ts --target=bun --outdir dist
