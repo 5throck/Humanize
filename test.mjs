@@ -134,6 +134,12 @@ check('A-8 fixes 보여지는/쓰여진', a8fix2.text.includes('보이는') && a
 const a19 = HR.analyze('이 브랜드에의 기대가 컸고, 사람들로부터의 신뢰가 무너졌다.');
 check('A-19 detects 에의/으로부터의', a19.findings.some(f => f.id === 'A-19'), JSON.stringify(a19.findings));
 check('A-19: 회의 is not 에의', !HR.analyze('오전 회의를 마쳤다.').findings.some(f => f.id === 'A-19'));
+const a19fix = HR.polish('기존 사업에서의 경험과 성공으로의 전환, 사람들로부터의 신뢰, 이 브랜드에의 기대가 있다.');
+check('A-19 drops doubled particles', a19fix.text.includes('사업에서 경험') && a19fix.text.includes('성공으로 전환')
+  && a19fix.text.includes('사람들로부터 신뢰') && a19fix.text.includes('브랜드에 기대'), a19fix.text);
+check('A-19 residual cleared after polish', !HR.analyze(a19fix.text).findings.some(f => f.id === 'A-19'),
+  JSON.stringify(HR.analyze(a19fix.text).findings));
+check('A-19 fix leaves 회의 untouched', HR.polish('오전 회의를 마쳤다.').text === '오전 회의를 마쳤다.');
 
 const a10 = HR.analyze('우리는 할 수 있다. 그들도 할 수 있다. 누구나 할 수 있다. 결국 모두가 할 수 있다.');
 check('A-10 fires at 4+ 할 수 있다', a10.findings.some(f => f.id === 'A-10'), JSON.stringify(a10.findings));
