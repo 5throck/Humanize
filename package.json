@@ -1,0 +1,16 @@
+{
+  "name": "humanize",
+  "private": true,
+  "type": "module",
+  "description": "AI가 쓴 한국어 글의 AI 티를 제거하는 윤문 웹앱 (epoko77-ai/im-not-ai 웹 포팅)",
+  "license": "MIT",
+  "scripts": {
+    "start": "bun serve.ts",
+    "dev": "bun serve.ts",
+    "test": "bun test.mjs",
+    "ref-check": "bun scripts/ref-check.mjs"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  }
+}

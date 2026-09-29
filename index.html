@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Humanize — AI 티 제거 한국어 윤문</title>
+  <meta name="description" content="AI가 쓴 한국어 글의 AI 티를 제거하는 윤문 도구. epoko77-ai/im-not-ai 규칙 기반." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">H</span>
+      <div class="brand-text">
+        <h1>Humanize</h1>
+        <p>AI가 쓴 한글의 AI 티를 제거하는 윤문 도구 <span class="brand-src">· 규칙 출처: <a href="https://github.com/epoko77-ai/im-not-ai" target="_blank" rel="noopener">epoko77-ai/im-not-ai</a></span></p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="mode-switch" role="radiogroup" aria-label="윤문 엔진 선택">
+        <button type="button" id="modeRules" class="mode-btn active" role="radio" aria-checked="true">규칙 기반 (오프라인)</button>
+        <button type="button" id="modeLlm" class="mode-btn" role="radio" aria-checked="false">LLM (API 키)</button>
+      </div>
+      <button type="button" id="settingsBtn" class="icon-btn" title="LLM 설정" aria-label="LLM 설정 열기">⚙</button>
+    </div>
+  </header>
+
+  <section class="toolbar" id="toolbar">
+    <label class="field">
+      <span class="field-label">장르</span>
+      <select id="genre">
+        <option value="auto">자동</option>
+        <option value="column">칼럼</option>
+        <option value="report">리포트</option>
+        <option value="blog">블로그</option>
+        <option value="formal">공적 문서</option>
+      </select>
+    </label>
+    <button type="button" id="runBtn" class="run-btn">
+      <span id="runBtnLabel">윤문하기</span>
+    </button>
+    <span id="llmStatus" class="llm-status" hidden></span>
+    <p class="toolbar-note" id="toolbarNote">규칙 기반 모드는 인터넷·API 키 없이 동작합니다. 문맥까지 다듬으려면 LLM 모드를 사용하세요.</p>
+  </section>
+
+  <main class="panels">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>원문</h2>
+        <div class="panel-actions">
+          <button type="button" id="sampleBtn" class="ghost-btn">예시 넣기</button>
+          <button type="button" id="clearBtn" class="ghost-btn">지우기</button>
+        </div>
+      </div>
+      <textarea id="input" spellcheck="false" placeholder="윤문할 한국어 텍스트를 붙여넣으세요.&#10;&#10;AI가 생성한 글을 넣으면 AI 티(번역투·관용구·리듬·장식)를 찾아 사람이 쓴 것처럼 다듬어 줍니다."></textarea>
+      <div class="panel-foot">
+        <span id="charCount">0자</span>
+        <span class="panel-foot-hint">최대 30,000자 · 내용(사실·수치·인용)은 유지됩니다</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>윤문본</h2>
+        <div class="panel-actions">
+          <button type="button" id="copyBtn" class="ghost-btn" disabled>복사</button>
+          <button type="button" id="downloadBtn" class="ghost-btn" disabled>.md 저장</button>
+        </div>
+      </div>
+      <div id="output" class="output is-empty">
+        <p class="output-placeholder">왼쪽에 원문을 넣고 <strong>윤문하기</strong>를 누르면<br />여기에 결과가 표시됩니다.</p>
+      </div>
+      <div class="panel-foot">
+        <span id="outMeta"></span>
+        <span class="panel-foot-hint">사실·수치·고유명사·직접 인용은 수정하지 않습니다</span>
+      </div>
+    </section>
+  </main>
+
+  <section class="stats" id="stats" hidden>
+    <div class="stat-badges" id="statBadges"></div>
+    <details class="findings" id="findingsWrap">
+      <summary>탐지된 AI 티 패턴 보기</summary>
+      <div class="finding-chips" id="findingChips"></div>
+    </details>
+  </section>
+
+  <dialog id="settingsDialog" class="settings-dialog">
+    <form method="dialog" class="settings-form">
+      <h3>LLM 설정</h3>
+      <p class="settings-desc">
+        OpenAI 호환 엔드포인트(<code>/chat/completions</code>)를 사용합니다.
+        OpenAI, OpenRouter, 로컬(Ollama·LM Studio 등) 모두 연결할 수 있습니다.
+        저장하면 설정이 이 브라우저와 로컬 서버의 <code>.env</code> 파일 양쪽에 반영됩니다.
+        입력한 API 키가 이 로컬 서버와 LLM 공급자 밖으로 전송되는 일은 없습니다.
+      </p>
+      <p class="settings-origin">
+        저장 위치: <code id="cfgOrigin"></code><br />
+        같은 주소로 열 때만 설정이 유지됩니다. <code>file://</code>로 연 탭과 <code>http://localhost</code> 탭의 저장소는 서로 다릅니다.
+      </p>
+      <p class="settings-saved" id="cfgSavedInfo"></p>
+      <label>
+        <span>Base URL</span>
+        <input type="text" id="cfgBaseUrl" list="providerUrls" placeholder="https://api.openai.com/v1" />
+      </label>
+      <datalist id="providerUrls">
+        <option value="https://api.openai.com/v1">OpenAI</option>
+        <option value="https://openrouter.ai/api/v1">OpenRouter</option>
+        <option value="https://api.z.ai/api/coding/paas/v4">Z.ai 코딩 플랜 (GLM)</option>
+        <option value="https://api.z.ai/api/paas/v4">Z.ai 일반 (GLM)</option>
+        <option value="https://open.bigmodel.cn/api/paas/v4">BigModel (GLM, 중국)</option>
+        <option value="https://api.anthropic.com">Anthropic (Claude)</option>
+        <option value="https://generativelanguage.googleapis.com/v1beta">Google Gemini</option>
+        <option value="https://api.deepseek.com">DeepSeek</option>
+        <option value="https://api.moonshot.cn/v1">Moonshot (Kimi)</option>
+        <option value="https://api.groq.com/openai/v1">Groq</option>
+        <option value="https://api.together.xyz/v1">Together</option>
+        <option value="https://api.mistral.ai/v1">Mistral</option>
+        <option value="https://api.x.ai/v1">xAI (Grok)</option>
+        <option value="http://localhost:11434/v1">Ollama (로컬)</option>
+        <option value="http://localhost:1234/v1">LM Studio (로컬)</option>
+      </datalist>
+      <label>
+        <span>API Key</span>
+        <input type="password" id="cfgApiKey" placeholder="sk-…" autocomplete="off" />
+      </label>
+      <label>
+        <span>모델 <small style="font-weight:400">— z.ai 모델 ID는 소문자입니다 (예: glm-5.3-flash)</small></span>
+        <input type="text" id="cfgModel" list="modelIds" placeholder="gpt-4.1-mini" />
+      </label>
+      <datalist id="modelIds">
+        <option value="glm-5.3">GLM-5.3 (코딩 플랜)</option>
+        <option value="glm-5.3-flash">GLM-5.3-Flash (코딩 플랜, 3배 쿼터)</option>
+        <option value="glm-4.6">GLM-4.6</option>
+        <option value="gpt-4.1-mini">OpenAI gpt-4.1-mini</option>
+        <option value="gpt-4.1">OpenAI gpt-4.1</option>
+        <option value="claude-sonnet-4-5">Anthropic Claude Sonnet 4.5</option>
+        <option value="claude-haiku-4-5">Anthropic Claude Haiku 4.5 (저가)</option>
+        <option value="gemini-2.5-flash">Google Gemini 2.5 Flash</option>
+        <option value="gemini-2.5-pro">Google Gemini 2.5 Pro</option>
+        <option value="deepseek-chat">DeepSeek Chat</option>
+        <option value="deepseek-reasoner">DeepSeek Reasoner</option>
+      </datalist>
+      <p class="settings-warn">⚠ 공용 컴퓨터에서는 API 키를 저장하지 마세요.</p>
+      <div class="settings-actions">
+        <button type="button" id="cfgDiagnose" class="ghost-btn">키 진단</button>
+        <button type="button" id="cfgTest" class="ghost-btn">연결 테스트</button>
+        <span id="cfgTestResult" class="test-result" role="status"></span>
+        <button type="submit" class="run-btn small">저장하고 닫기</button>
+      </div>
+    </form>
+  </dialog>
+
+  <footer class="site-footer">
+    <p>
+      윤문 규칙과 프롬프트는 <a href="https://github.com/epoko77-ai/im-not-ai" target="_blank" rel="noopener">im-not-ai (Humanize KR, MIT)</a>의
+      quick-rules와 humanize-monolith를 웹용으로 재구성한 것입니다.
+      본 도구는 AI 탐지기 우회를 보장하는 진실성 도구가 아니며, 학술 제출물 등 해당 분야 규정 확인 후 사용하세요.
+    </p>
+  </footer>
+
+  <script src="rules.js"></script>
+  <script src="prompt.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

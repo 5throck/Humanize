@@ -1,0 +1,198 @@
+{
+  "$note": "출처 레지스트리 (SSOT). 규칙·프롬프트·테스트가 어느 저장소에서 왔는지, 무엇을 채택했고 무엇을 보류했는지 기록한다. 사용 규칙은 REFERENCES.md, 드리프트 점검은 scripts/ref-check.mjs. rules.js 규칙의 src 필드 값은 이 파일 sources[].id와 일치해야 하고, src가 없으면 default_source로 간주한다.",
+  "version": 1,
+  "updated": "2026-09-29",
+  "default_source": "im-not-ai",
+  "sources": [
+    {
+      "id": "im-not-ai",
+      "name": "epoko77-ai/im-not-ai (Humanize KR)",
+      "repo": "epoko77-ai/im-not-ai",
+      "url": "https://github.com/epoko77-ai/im-not-ai",
+      "role": "upstream",
+      "license": "MIT",
+      "summary": "AI가 쓴 한글을 사람 글처럼 윤문하는 Claude 스킬. 룰북·철칙·자체검증·등급 체계의 원본. 이 프로젝트의 SSOT이며, 다른 출처는 여기에 없는 부분을 보강할 때만 참고한다.",
+      "key_files": [
+        "skills/humanize-korean/references/quick-rules.md",
+        "agents/humanize-monolith.md",
+        "skills/humanize-korean/references/empirical-validation.md",
+        "skills/humanize-korean/references/diagnosis-rules.md"
+      ],
+      "adopted": [
+        {
+          "what": "초기 포팅 — quick-rules 룰북(A~J) 전체와 monolith 철칙·자체검증·등급 체계. 규칙 기본 출처(src 미표기 = 이곳).",
+          "targets": { "rules": "전체", "prompt": "철칙 9항·절차·룰북·등급" },
+          "date": "초기"
+        },
+        {
+          "what": "v2.x 드리프트 동기화 (2026-09 벤치마킹 회차) — A-8 진형 확장, A-10 탐지 신설, A-19 에의/으로부터의, D-1 이를 통해, D-8 문제는 변종, D-14 임계 2회+→1회+ (사람 코퍼스 실측 0건).",
+          "rules": ["A-8", "A-10", "A-19", "D-1", "D-8", "D-14"],
+          "prompt": ["A-8/A-19/D-1/D-8/D-14 룰북 라인", "필자 자문·강조 따옴표 Do-NOT 예외(v2.6.2)"],
+          "date": "2026-09-29"
+        }
+      ],
+      "deferred": [],
+      "last_checked": "2026-09-29"
+    },
+    {
+      "id": "isaac-humanizer-ko",
+      "name": "IsaacEryn/humanizer-ko",
+      "repo": "IsaacEryn/humanizer-ko",
+      "url": "https://github.com/IsaacEryn/humanizer-ko",
+      "role": "benchmark",
+      "license": "확인 필요 (저장소 LICENSE)",
+      "summary": "35개 패턴의 한국어 AI 티 탐지 스킬. 밀도 기준 표(한 문장 3+, 한 문단 3+, 글 전체 2+)와 오탐 화이트리스트가 정교하다.",
+      "key_files": [
+        "SKILL.md"
+      ],
+      "adopted": [
+        {
+          "what": "이중 피동 확장 — 보여지/쓰여지 계열 (§13). 진 종성형(보여진다 등)은 각각 별도 정규식 대안 필요.",
+          "rules": ["A-8"],
+          "date": "2026-09-29"
+        },
+        {
+          "what": "K 카테고리 (챗봇 잔여물) — 대화 잔여물·아부 톤(§20/22), 예고 문장(§28), 가짜 솔직 오프너(§33), 상투적 긍정 마무리(§25).",
+          "rules": ["K-1", "K-2", "K-3", "K-4"],
+          "date": "2026-09-29"
+        },
+        {
+          "what": "프롬프트 절차 — 2-pass 자문 루프, 군집/밀도 원칙(임계 미달 단발은 고치지 않음), 사람 글 증거 보존, 원문 습관 빈도 유지, 소리 내어 읽기 점검.",
+          "prompt": ["철칙 2/4/8 보강", "절차 3"],
+          "date": "2026-09-29"
+        }
+      ],
+      "deferred": [
+        "밀도 S2 어휘군 규칙(다양한·심층적·자리매김 등 4회+) — 오탐 캘리브레이션 후",
+        "동의어 순환·제목 뒤 한 줄 되풀이·변경 이력 서술 — 정규식 곤란, LLM 영역",
+        "군집 폭 grade 반영(카테고리 3개+ 시 하향) — 등급 시맨틱 변경이라 보류"
+      ],
+      "last_checked": "2026-09-29"
+    },
+    {
+      "id": "patina",
+      "name": "devswha/patina",
+      "repo": "devswha/patina",
+      "url": "https://github.com/devswha/patina",
+      "role": "benchmark",
+      "license": "확인 필요 (저장소 LICENSE)",
+      "summary": "KO/EN/ZH/JA 4개국어 AI 글 인간화기. 정규식을 넘어 분포 통계(burstiness·MATTR), 문서 레벨 밀도 게이트, 실사용 불만 기반 tells 카탈로그가 강점.",
+      "key_files": [
+        "SKILL.md",
+        ".patina.default.yaml",
+        "agents/patina-detector.md",
+        "artifacts/persona-calibration-2026/ai-tells-catalog.md"
+      ],
+      "adopted": [
+        {
+          "what": "마크업 잔재 (markup_leakage — 근거강도 최상 신호): 닫히지 않은 코드펜스·<think>류 태그·«…» 아티팩트. 정상 코드블록(짝수 펜스)은 제외.",
+          "rules": ["J-4"],
+          "date": "2026-09-29"
+        },
+        {
+          "what": "수평 구분선 과다 (thematic_break, 문서 3개+ 게이트).",
+          "rules": ["J-5"],
+          "date": "2026-09-29"
+        },
+        {
+          "what": "평서 종결 단조 (ending_monotony) — -다 비율 + CV 게이트로 평탄 다체 AI 글 감지. 임계는 우리 실측에 맞춰 강화(CV<0.25, 비율 0.85+).",
+          "rules": ["E-3"],
+          "date": "2026-09-29"
+        },
+        {
+          "what": "어휘 다양성 저하 (MATTR, 50토큰 슬라이딩 윈도우) — 임계 0.50으로 보수 운용(한국어 조사 부착 토큰은 TTR이 높게 나옴).",
+          "rules": ["E-4"],
+          "date": "2026-09-29"
+        },
+        {
+          "what": "프롬프트 — 극성 반전 명시 스캔(부정어·비교·조건절, SOFT FAIL 기준), 해당 스팬만 롤백 후 1회 재작업.",
+          "prompt": ["철칙 1 보강", "절차 5"],
+          "date": "2026-09-29"
+        }
+      ],
+      "deferred": [
+        "다중 패스 P1~P5 + 부분 롤백 게이트 — LLM 호출 루프 필요, 채택 시 retry 1~2회 축소판부터",
+        "genre→pattern overrides(suppress/reduce/amplify) 테이블",
+        "blocklist/allowlist 사용자 어휘 설정 (localStorage)",
+        "한국어 3신호 복합(어절 CV≤0.38 + 쉼표≤1/문장 + 접미 다양성≤0.26)",
+        "short-text boost(200자 미만 severity ×1.5)",
+        "탐지 전용 모드 프롬프트(근거 스팬 출력, 재작성 금지)",
+        "burstiness CV 0.30을 E-1에 적용 — 어절 기준 캘리브레이션이라 문자 기준(실측 사람 뉴스 CV 0.287)에선 오탐. 어절 토큰 전환과 함께 재검토"
+      ],
+      "last_checked": "2026-09-29"
+    },
+    {
+      "id": "yoonmoon",
+      "name": "amondnet/yoonmoon",
+      "repo": "amondnet/yoonmoon",
+      "url": "https://github.com/amondnet/yoonmoon",
+      "role": "benchmark",
+      "license": "확인 필요 (저장소 LICENSE)",
+      "summary": "윤문·탐지 분리형 Claude Code 플러그인. 학술 연구(KatFishNet ACL 2025, LREAD, XDAC) 기반 루브릭. 유일하게 '과소 서술'(윤문이 만드는 결함) 축을 다룬다.",
+      "key_files": [
+        "skills/humanize/SKILL.md",
+        "skills/humanize/references/ai-tell-taxonomy.md",
+        "skills/detect/SKILL.md"
+      ],
+      "adopted": [
+        {
+          "what": "과소 서술 보정 패스 — 덜어낸 결과가 전보체·개조식(명사구 종결·조사 생략)이면 되돌린다. 명확함 > 간결함. 빼기 위주 정책의 역가드.",
+          "prompt": ["절차 4"],
+          "tests": ["polish가 사람 보고문을 훼손하지 않음(사람 글 오탐 스위트)"],
+          "date": "2026-09-29"
+        }
+      ],
+      "deferred": [
+        "과소 서술 카테고리 11의 규칙화 — 문맥 판단 필요, 프롬프트+테스트로만 운용",
+        "탐지 전용 스킬 분리(확률 추정, 단독 판정 금지 윤리 한계)",
+        "강도 옵션(보수/기본/적극) 프롬프트 분기",
+        "무생물 복수 '-들', '~할 것이다' 반발 등 약한 신호 규칙화"
+      ],
+      "last_checked": "2026-09-29"
+    },
+    {
+      "id": "dotori-korean-humanizer",
+      "name": "dotoricode/korean-humanizer",
+      "repo": "dotoricode/korean-humanizer",
+      "url": "https://github.com/dotoricode/korean-humanizer",
+      "role": "reference",
+      "license": "확인 필요 (저장소 LICENSE)",
+      "summary": "실무 유즈케이스(이메일·SNS·카피) 중심 한국어 휴머나이저. eval/ 디렉터리에 장르별 before/after fixture 체계가 잘 갖춰져 있다.",
+      "key_files": [
+        "SKILL.md",
+        "eval/README.md"
+      ],
+      "adopted": [
+        {
+          "what": "오탐 화이트리스트 발상(존칭 수식어·대조 연결어 등 제거 금지 항목) — isaac 것과 함께 프롬프트 Do-NOT에 반영.",
+          "prompt": ["철칙 6 화이트리스트"],
+          "date": "2026-09-29"
+        },
+        {
+          "what": "골든 before/after fixture 방식 — 사람 글 오탐 스위트(test.mjs)의 설계 근거.",
+          "tests": ["사람 글 오탐 스위트"],
+          "date": "2026-09-29"
+        }
+      ],
+      "deferred": [
+        "도메인별 종결어미 정책(발화체 도메인에서 글말체 금지) — 장르 파라미터 도입 시 재검토"
+      ],
+      "last_checked": "2026-09-29"
+    },
+    {
+      "id": "hjongc-humanizer-kr",
+      "name": "hjongc/humanizer-kr",
+      "repo": "hjongc/humanizer-kr",
+      "url": "https://github.com/hjongc/humanizer-kr",
+      "role": "reference",
+      "license": "확인 필요 (저장소 LICENSE)",
+      "summary": "Codex·Claude Code 스킬. 장르별 before/after examples 제공. 검토 결과 채택하지 않음 — 규칙이 우리 원본과 대부분 중복.",
+      "key_files": [
+        "README.md"
+      ],
+      "adopted": [],
+      "not_adopted_reason": "패턴 체계가 im-not-ai와 고도 중복. examples/의 before-after 쌍은 신규 규칙의 회귀 픽스처 후보로만 보관.",
+      "last_checked": "2026-09-29"
+    }
+  ]
+}
