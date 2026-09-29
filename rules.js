@@ -1,20 +1,21 @@
 /*
- * HumanizeRules — web port of epoko77-ai/im-not-ai (Humanize KR) quick-rules.
+ * HumanizeRules — Korean de-AI polish rules for the web (multi-source).
  *
- * Source of truth: https://github.com/epoko77-ai/im-not-ai (MIT License)
- *   - skills/humanize-korean/references/quick-rules.md (slim rulebook)
- *   - agents/humanize-monolith.md (prime directives, self-check, grading)
+ * Provenance is tracked in references.json (registry SSOT — see
+ * REFERENCES.md for the update protocol and `node scripts/ref-check.mjs`
+ * for upstream drift checks). Sources:
+ *   - Core rulebook ported from epoko77-ai/im-not-ai (MIT License),
+ *     https://github.com/epoko77-ai/im-not-ai
+ *       - skills/humanize-korean/references/quick-rules.md (slim rulebook)
+ *       - agents/humanize-monolith.md (prime directives, self-check, grading)
+ *   - Benchmark additions (2026-09), pattern-verified against sibling repos:
+ *       - IsaacEryn/humanizer-ko (35 patterns → K category, A-8 보여지/쓰여지)
+ *       - devswha/patina (KO/EN/ZH/JA → markup leakage J-4, thematic break J-5,
+ *         fake candor gate, burstiness CV calibration, MATTR, -다 monorhythm)
+ *       - amondnet/yoonmoon (과소 서술 축 → prompt-side guard only)
  *
- * Provenance: each rule carries a `src` array of source ids from
- * references.json (the registry SSOT — see REFERENCES.md for the update
- * protocol and `node scripts/ref-check.mjs` for upstream drift checks).
- * Rules WITHOUT `src` default to "im-not-ai" (upstream).
- *
- * Benchmark additions (2026-09), pattern-verified against sibling repos:
- *   - IsaacEryn/humanizer-ko (35 patterns → K category, A-8 보여지/쓰여지)
- *   - devswha/patina (KO/EN/ZH/JA → markup leakage J-4, thematic break J-5,
- *     fake candor gate, burstiness CV calibration, MATTR, -다 monorhythm)
- *   - amondnet/yoonmoon (과소 서술 축 → prompt-side guard only)
+ * Each rule carries a `src` array of source ids from references.json.
+ * Rules WITHOUT `src` follow the core rulebook (im-not-ai).
  *
  * Scope: deterministic, context-free prescriptions only. Structural rewrites
  * (clause splitting, rhythm control, hedging variation) are DETECT-ONLY here;

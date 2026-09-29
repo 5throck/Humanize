@@ -1,15 +1,15 @@
 /*
  * HumanizePrompt — system prompt for LLM mode.
  *
- * Distilled from epoko77-ai/im-not-ai (Humanize KR, MIT License):
- *   - agents/humanize-monolith.md  (prime directives, procedure, self-check)
- *   - skills/humanize-korean/references/quick-rules.md (slim rulebook)
- *
- * Benchmark additions (2026-09):
- *   - IsaacEryn/humanizer-ko: 2-pass self-questioning loop, cluster/density
- *     principle, human-evidence preservation, false-positive whitelist
- *   - amondnet/yoonmoon: under-polish (과소 서술) correction pass
- *   - devswha/patina: polarity-inversion scan, part-rollback-then-once-retry
+ * Multi-source provenance (see references.json / REFERENCES.md):
+ *   - epoko77-ai/im-not-ai (MIT License):
+ *     - agents/humanize-monolith.md  (prime directives, procedure, self-check)
+ *     - skills/humanize-korean/references/quick-rules.md (slim rulebook)
+ *   - Benchmark additions (2026-09):
+ *     - IsaacEryn/humanizer-ko: 2-pass self-questioning loop, cluster/density
+ *       principle, human-evidence preservation, false-positive whitelist
+ *     - amondnet/yoonmoon: under-polish (과소 서술) correction pass
+ *     - devswha/patina: polarity-inversion scan, part-rollback-then-once-retry
  *
  * Provenance: sources and adopted/deferred items are tracked in
  * references.json (registry SSOT — see REFERENCES.md; drift check:

@@ -2,7 +2,7 @@
 
 AI가 쓴 한국어 글의 "AI 티"를 제거하는 윤문 웹앱. 왼쪽 패널에 원문을 넣고 **윤문하기**를 누르면 오른쪽 패널에 다듬어진 글이 표시됩니다.
 
-윤문 규칙과 프롬프트의 출처는 [REFERENCES.md](REFERENCES.md)로 관리합니다. 기본 출처는 [epoko77-ai/im-not-ai](https://github.com/epoko77-ai/im-not-ai)(Humanize KR, MIT License)이고, 2026-09부터 동종 저장소를 벤치마킹해 보강하고 있습니다 — [IsaacEryn/humanizer-ko](https://github.com/IsaacEryn/humanizer-ko)(챗봇 잔여물 K 카테고리 등), [devswha/patina](https://github.com/devswha/patina)(마크업 잔재·MATTR 등 통계 탐지), [amondnet/yoonmoon](https://github.com/amondnet/yoonmoon)(과소 서술 보정). 출처별 채택·보류 내역은 [`references.json`](references.json)이 단일 진실 공급원(SSOT)이며, 규칙마다 `src` 필드로 출처가 표기됩니다. 기능 업데이트 시에는 `bun scripts/ref-check.mjs`로 업스트림 드리프트를 먼저 확인하세요.
+윤문 규칙과 프롬프트는 단일 출처가 아니라 여러 출처로 구성되어 있으며, [REFERENCES.md](REFERENCES.md)로 관리합니다. 뼈대는 [epoko77-ai/im-not-ai](https://github.com/epoko77-ai/im-not-ai)(Humanize KR, MIT License)의 룰북·모놀리스 프롬프트이고, 여기에 2026-09부터 동종 저장소를 벤치마킹해 보강했습니다 — [IsaacEryn/humanizer-ko](https://github.com/IsaacEryn/humanizer-ko)(챗봇 잔여물 K 카테고리 등), [devswha/patina](https://github.com/devswha/patina)(마크업 잔재·MATTR 등 통계 탐지), [amondnet/yoonmoon](https://github.com/amondnet/yoonmoon)(과소 서술 보정). 웹 구현·서버·테스트는 이 저장소의 것입니다. 출처별 채택·보류 내역은 [`references.json`](references.json)이 단일 진실 공급원(SSOT)이며, 규칙마다 `src` 필드로 출처가 표기됩니다. 기능 업데이트 시에는 `bun scripts/ref-check.mjs`로 업스트림 드리프트를 먼저 확인하세요.
 
 ## 실행
 
@@ -132,14 +132,14 @@ test.mjs          규칙 엔진 + 레지스트리 매핑 테스트 (bun test.mjs
 
 `.env`는 커밋 대상이 아닙니다(`.gitignore` 참고).
 
-## 설계 원칙 (원본 im-not-ai에서 계승)
+## 설계 원칙 (원본 저장소에서 계승)
 
 - **의미 불변**: 사실·수치·날짜·고유명사·직접 인용·법률 조문·영어 약어(LLM·GPU·API)는 수정하지 않습니다.
 - **빼기 전용**: 원문에 없던 표현을 새로 넣지 않습니다.
 - **과윤문 가드**: 변경률 30% 초과 경고, 50% 이상은 등급 D 처리.
 - **register 보존**: 격식체↔구어체 전환을 하지 않습니다.
-- 원본과 마찬가지로 이 도구는 **AI 탐지기 우회를 보장하는 진실성 도구가 아닙니다.** 학술 제출물 등 소속 기관 규정을 확인 후 사용하세요.
+- 원본 저장소와 마찬가지로 이 도구는 **AI 탐지기 우회를 보장하는 진실성 도구가 아닙니다.** 학술 제출물 등 소속 기관 규정을 확인 후 사용하세요.
 
 ## 라이선스
 
-규칙·프롬프트 출처인 [im-not-ai](https://github.com/epoko77-ai/im-not-ai)는 MIT License입니다. 본 포팅 코드도 MIT로 배포합니다.
+규칙·프롬프트의 뼈대 출처인 [im-not-ai](https://github.com/epoko77-ai/im-not-ai)는 MIT License입니다(벤치마크 출처들의 라이선스는 [`references.json`](references.json)의 `license` 필드에 기록). 이 프로젝트의 코드는 MIT로 배포합니다.
