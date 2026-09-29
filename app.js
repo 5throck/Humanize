@@ -661,7 +661,8 @@
         els.cfgTestResult.style.color = '#dc2626';
       }
     } catch (e) {
-      els.cfgTestResult.textContent = '✕ 연결 실패 — 공급자가 브라우저 호출(CORS)을 차단할 수 있습니다. bun serve.ts 실행 후 Base URL을 http://localhost:8765/proxy/<호스트> 형태로 설정하세요.';
+      var port = location.port ? ':' + location.port : '';
+      els.cfgTestResult.textContent = '✕ 연결 실패 — 로컬 서버(serve.ts)에 닿지 못했습니다. bun serve.ts(또는 node serve.ts)가 실행 중인지, 이 탭이 http://localhost' + port + ' 로 열려 있는지 확인하세요. 공급자 호출은 이 서버가 대행하므로 /proxy/ 경로는 필요하지 않습니다.';
       els.cfgTestResult.style.color = '#dc2626';
     }
   });
