@@ -41,7 +41,10 @@ if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
   console.error(`오류: 포트 값이 올바르지 않습니다 — "${PORT_RAW}" (1~65535 사이의 숫자를 넣으세요)`);
   process.exit(1);
 }
-const TIMEOUT_MS = 180_000;
+// Long polish jobs generate ~input-length output token by token; a 30k-char
+// text can take several minutes on a flash model. The browser side has no
+// timeout, so the ceiling here is what the user waits.
+const TIMEOUT_MS = 600_000;
 const ENV_FILE = path.join(ROOT, ".env");
 
 type Provider = "openai-compatible" | "anthropic" | "gemini";
@@ -435,7 +438,17 @@ async function forwardChat(req: http.IncomingMessage, res: http.ServerResponse, 
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (e) {
-    sendError(res, 502, String((e as Error)?.message ?? e));
+    const msg = String((e as Error)?.message ?? e);
+    if (/timed?\s*-?\s*out|timeout|abort/i.test(msg)) {
+      sendError(
+        res,
+        504,
+        `공급자가 ${Math.round(TIMEOUT_MS / 1000)}초 안에 응답하지 않아 중단했습니다. ` +
+          "원문이 길면 생성이 몇 분 걸릴 수 있습니다 — 원문을 나눠 시도하거나 잠시 후 재시도하세요.",
+      );
+      return;
+    }
+    sendError(res, 502, msg);
     return;
   }
 
