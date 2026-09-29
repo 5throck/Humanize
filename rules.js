@@ -120,8 +120,24 @@
     {
       id: 'A-19', cat: 'A', name: '이중 조사 "~에서의/~으로의"', severity: 2,
       src: ["im-not-ai"],
-      // 에의/으로부터의: upstream A-19 expansion (v2.x).
-      detect: function (t) { return count(t, /에서의|으로의|에로의|에의|으로부터의/g); }
+      // 에의/으로부터의/로부터의(ㄹ 받침 뒤): upstream A-19 expansion (v2.x).
+      detect: function (t) { return count(t, /으로부터의|로부터의|에서의|으로의|에로의|에의/g); },
+      fix: function (t) {
+        // 이중 조사 제거 — every fixable form reduces to its base particle
+        // (사업에서의 경험 → 사업에서 경험), so the swap is deterministic.
+        // "에로의"(= "으로의"/"~로의" 오타)와 "로의"는 감지 전용: 의도 형태가
+        // 문맥 없이는 모호하고(단계로의? 경로의존?) 명사 내부와 충돌한다.
+        var re = /으로부터의|로부터의|에서의|으로의|에의/g;
+        var c = count(t, re);
+        if (c === 0) return { text: t, applied: 0 };
+        var out = t.replace(re, function (s) {
+          if (s === '에서의') return '에서';
+          if (s === '으로부터의' || s === '로부터의') return s.slice(0, -1);
+          if (s === '으로의') return '으로';
+          return '에';
+        });
+        return { text: out, applied: c };
+      }
     },
     {
       id: 'A-21', cat: 'A', name: '"단순한 X를 넘어 Y"', severity: 2,

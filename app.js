@@ -300,12 +300,16 @@
     var fixedLine = applied && applied.length
       ? ' 자동 수정: ' + applied.map(function (a) { return a.id + ' ×' + a.count; }).join(', ') + '.'
       : '';
+    var noFixNote = '';
+    if (mode === 'rules' && (!applied || !applied.length) && after.total > 0) {
+      noFixNote = ' 남은 신호는 임계 미달이거나 문맥 재작성이 필요한 패턴(감지 전용)이라 자동 수정 대상이 아닙니다 — 문맥 다듬기는 LLM 모드를 사용하세요.';
+    }
     var gradeNote = '';
     if (mode === 'llm') {
       var g2 = HumanizeRules.grade(after, rate);
       if (g2.level === 'C' || g2.level === 'D') gradeNote = ' ' + g2.reason + '.';
     }
-    els.outMeta.textContent = '원문 ' + before.total + '건 → 결과 ' + after.total + '건.' + fixedLine + gradeNote;
+    els.outMeta.textContent = '원문 ' + before.total + '건 → 결과 ' + after.total + '건.' + fixedLine + noFixNote + gradeNote;
 
     els.stats.hidden = false;
   }
