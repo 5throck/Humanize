@@ -149,10 +149,32 @@ const d1t = HR.analyze('이를 통해, 시장은 안정을 찾았다.');
 check('D-1 detects 문두 이를 통해', d1t.findings.some(f => f.id === 'D-1'), JSON.stringify(d1t.findings));
 
 const d8t = HR.analyze('문제는 비용이다.');
-check('D-8 detects 문제는 변종', d8t.findings.some(f => f.id === 'D-8'), JSON.stringify(d8t.findings));
+check('D-8: single 문제는 is human idiom (isaac §27)', !d8t.findings.some(f => f.id === 'D-8'), JSON.stringify(d8t.findings));
+const d8t2 = HR.analyze('문제는 비용이다. 핵심은 속도다.');
+check('D-8 fires at 2+ settling variants', d8t2.findings.some(f => f.id === 'D-8'), JSON.stringify(d8t2.findings));
+const d8t3 = HR.analyze('정비 인력이 모자란다는 점이다. 배차가 늦어진다는 점이다.');
+check('D-8 counts "~다는 점이다" settling form', d8t3.findings.some(f => f.id === 'D-8'), JSON.stringify(d8t3.findings));
 
 const d14t = HR.analyze('AI가 시장을 잠식하고 있다.');
 check('D-14 fires at 1 occurrence (upstream: human corpus 0)', d14t.findings.some(f => f.id === 'D-14'), JSON.stringify(d14t.findings));
+
+// 2026-10 sync — im-not-ai v2.7 + isaac 1.2~1.5 (see references.json).
+console.log('# benchmark 2026-10: H-1 / E-2 passive progressive / D-10 셈이다 / C-11 gate');
+const h1a = HR.analyze('또한, 비용이 줄었다. 나아가, 속도가 빨라졌다. 아울러, 품질도 좋아졌다.');
+check('H-1 fires at 3+ sentence-initial connectives in one paragraph', h1a.findings.some(f => f.id === 'H-1'), JSON.stringify(h1a.findings));
+check('H-1 silent below 3 in a paragraph', !HR.analyze('또한, 비용이 줄었다. 나아가, 속도가 빨라졌다.').findings.some(f => f.id === 'H-1'));
+check('H-1 is paragraph-scoped, not document-scoped',
+  !HR.analyze('또한, 비용이 줄었다. 나아가, 속도가 빨라졌다.\n\n또한, 품질도 좋아졌다.').findings.some(f => f.id === 'H-1'),
+  JSON.stringify(HR.analyze('또한, 비용이 줄었다. 나아가, 속도가 빨라졌다.\n\n또한, 품질도 좋아졌다.').findings.map(f => f.id)));
+const e2pos = HR.analyze('경쟁이 심화되고 있다. 제품이 통합되고 있다. 서비스가 재편되고 있다.');
+check('E-2 flags passive-progressive cluster (one paragraph 3+)', e2pos.findings.some(f => f.id === 'E-2'), JSON.stringify(e2pos.findings));
+const e2act = HR.analyze('우리는 계획을 추진하고 있다. 팀은 기능을 확장하고 있다. 담당자는 보고서를 쓰고 있다.');
+check('E-2 ignores active progressive (common in human writing)', !e2act.findings.some(f => f.id === 'E-2'), JSON.stringify(e2act.findings));
+check('E-2 excludes 가지고 있다 (A-7 territory)',
+  !HR.analyze('팀이 권한을 가지고 있다. 실무자가 예산을 가지고 있다. 관리자가 인력을 가지고 있다.').findings.some(f => f.id === 'E-2'));
+check('D-10 includes 인 셈이다 variant', HR.analyze('이 프로젝트는 사실상 끝난 인 셈이다.\n지난 노력도 다시 시작한 인 셈이다.').findings.some(f => f.id === 'D-10'));
+check('C-11 detect silent below 3 (aligned with fix threshold)',
+  !HR.analyze('밥을 먹고, 산책을 했고, 책을 읽으며 하루를 마쳤다.').findings.some(f => f.id === 'C-11'));
 
 console.log('# benchmark: J-4 markup leakage / J-5 thematic breaks');
 const j4a = HR.analyze('결론은 다음과 같다.\n```');
@@ -208,7 +230,7 @@ const human = [
   '세부 시행령은 아직 조율 중이다.'
 ].join('\n');
 const humanRes = HR.analyze(human);
-const newIds = ['A-10', 'J-4', 'J-5', 'K-1', 'K-2', 'K-3', 'K-4', 'E-3', 'E-4'];
+const newIds = ['A-10', 'H-1', 'J-4', 'J-5', 'K-1', 'K-2', 'K-3', 'K-4', 'E-2', 'E-3', 'E-4'];
 const fired = humanRes.findings.filter(f => newIds.includes(f.id)).map(f => f.id);
 check('new rules silent on human report', fired.length === 0, JSON.stringify(humanRes.findings));
 check('human report overall clean', humanRes.total === 0, JSON.stringify(humanRes.findings));
