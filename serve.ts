@@ -210,15 +210,15 @@ interface ProviderPreset {
 }
 
 const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
-  // ── 일반 공급자 (4종) ──────────────────────────────────────────────
+  // ── 일반 공급자 (5종) ──────────────────────────────────────────────
   "openai-compatible": { protocol: "openai-compatible", defaultBase: "https://api.openai.com/v1", keyNames: ["LLM_API_KEY", "OPENAI_API_KEY"], label: "OpenAI 호환" },
+  "openai": { protocol: "openai-compatible", defaultBase: "https://api.openai.com/v1", keyNames: ["OPENAI_API_KEY", "LLM_API_KEY"], label: "OpenAI" },
   "anthropic": { protocol: "anthropic", defaultBase: "https://api.anthropic.com", keyNames: ["LLM_API_KEY", "ANTHROPIC_API_KEY"], label: "Anthropic" },
   "gemini": { protocol: "gemini", defaultBase: "https://generativelanguage.googleapis.com/v1beta", keyNames: ["LLM_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"], label: "Google Gemini" },
   "custom": { protocol: "openai-compatible", defaultBase: "", keyNames: ["LLM_API_KEY"], label: "Custom" },
   // ── 편의 프리셋 (공급자 공식 주소를 한 번에) ─────────────────────────
   "zai": { protocol: "openai-compatible", defaultBase: "https://api.z.ai/api/paas/v4", keyNames: ["ZAI_API_KEY", "LLM_API_KEY"], label: "Z.ai" },
   "zai-coding": { protocol: "openai-compatible", defaultBase: "https://api.z.ai/api/coding/paas/v4", keyNames: ["ZAI_API_KEY", "LLM_API_KEY"], label: "Z.ai 코딩 플랜" },
-  "openai": { protocol: "openai-compatible", defaultBase: "https://api.openai.com/v1", keyNames: ["OPENAI_API_KEY", "LLM_API_KEY"], label: "OpenAI" },
   "deepseek": { protocol: "openai-compatible", defaultBase: "https://api.deepseek.com", keyNames: ["DEEPSEEK_API_KEY", "LLM_API_KEY"], label: "DeepSeek" },
   "bigmodel": { protocol: "openai-compatible", defaultBase: "https://open.bigmodel.cn/api/paas/v4", keyNames: ["ZAI_API_KEY", "LLM_API_KEY"], label: "BigModel (GLM)" },
 };

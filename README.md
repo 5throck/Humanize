@@ -35,10 +35,11 @@ LLM_MODEL=gpt-4.1-mini          # ③ 모델
 
 ## 지원 공급자
 
-### 일반 공급자 (4종)
+### 일반 공급자 (5종)
 
 | `LLM_PROVIDER` | 처리 방식 | 기본 Base URL | 키 |
 |----------------|----------|---------------|-----|
+| `openai` | OpenAI 호환 전달 (공급자 고정) | `https://api.openai.com/v1` | `OPENAI_API_KEY` (또는 `LLM_API_KEY`) |
 | `openai-compatible` | OpenAI 호환 전달 | `https://api.openai.com/v1` | `LLM_API_KEY` (또는 `OPENAI_API_KEY`) |
 | `anthropic` | 네이티브 **Messages API**로 변환 (`x-api-key` + `anthropic-version`) | `https://api.anthropic.com` | `LLM_API_KEY` (또는 `ANTHROPIC_API_KEY`) |
 | `gemini` | 네이티브 **generateContent**로 변환 (`x-goog-api-key`) | `https://generativelanguage.googleapis.com/v1beta` | `LLM_API_KEY` (또는 `GEMINI_API_KEY`/`GOOGLE_API_KEY`) |
@@ -46,14 +47,14 @@ LLM_MODEL=gpt-4.1-mini          # ③ 모델
 
 - 기본 Base URL은 각 공급자의 공식 주소이며, `LLM_BASE_URL`로 덮어쓸 수 있습니다 (예: `custom` + `https://api.z.ai/api/coding/paas/v4`, 또는 Z.ai의 Anthropic 프로토콜 엔드포인트 `https://api.z.ai/api/anthropic` + `LLM_PROVIDER=anthropic`).
 - 브라우저는 항상 OpenAI chat/completions 형식만 말하고, Anthropic·Gemini 프로토콜 변환은 서버가 합니다.
+- `openai`와 `openai-compatible`의 처리 방식은 같습니다 — `openai`는 OpenAI 공식 주소·키 이름을 고정한 것(`OPENAI_API_KEY` 우선)이고, `openai-compatible`은 임의 호환 엔드포인트용입니다.
 
-### 편의 프리셋 (위 4종의 축약형)
+### 편의 프리셋 (공급자별 공식 조합 축약형)
 
 | `LLM_PROVIDER` | 실제 조합 |
 |----------------|----------|
 | `zai` | `openai-compatible` + `https://api.z.ai/api/paas/v4` + `ZAI_API_KEY` |
 | `zai-coding` | `openai-compatible` + `https://api.z.ai/api/coding/paas/v4` + `ZAI_API_KEY` |
-| `openai` | `openai-compatible` + `https://api.openai.com/v1` + `OPENAI_API_KEY` |
 | `deepseek` | `openai-compatible` + `https://api.deepseek.com` + `DEEPSEEK_API_KEY` |
 | `bigmodel` | `openai-compatible` + `https://open.bigmodel.cn/api/paas/v4` + `ZAI_API_KEY` |
 
@@ -76,8 +77,8 @@ LLM_MODEL=gpt-4.1-mini          # ③ 모델
 
 | 모드 | 동작 | 필요 것 |
 |------|------|---------|
-| **규칙 기반 (오프라인)** | quick-rules 중 문맥 없이 안전하게 적용 가능한 40여 개 패턴(이중 피동, "~에 있어서", 결산 어휘 남발, 분열문, 연결어미 쉼표, 챗봇 잔여물, 마크업 잔재, 평서 종결 단조 등)을 정규식·통계 엔진으로 탐지·수정 | 없음 |
-| **LLM** | 원본 `humanize-monolith`의 철칙 9항 + 전체 룰북을 시스템 프롬프트로 실행. Z.ai/GLM·OpenAI·Anthropic·Gemini·DeepSeek 지원 | `.env` 또는 설정창의 키 |
+| **규칙 기반 (오프라인)** | quick-rules 중 문맥 없이 안전하게 적용 가능한 47개 패턴(이중 피동, "~에 있어서", 결산 어휘 남발, 분열문, 연결어미 쉼표, 챗봇 잔여물, 마크업 잔재, 평서 종결 단조, 접속사 문단 밀집 등)을 정규식·통계 엔진으로 탐지·수정 | 없음 |
+| **LLM** | 원본 `humanize-monolith`의 철칙 9항 + 전체 룰북을 시스템 프롬프트로 실행. Z.ai/GLM·OpenAI·Anthropic·Gemini·DeepSeek 지원. 15,000자 이상 원문은 장문 청킹으로 자동 분할 처리(아래 청킹 절) | `.env` 또는 설정창의 키 |
 
 - 규칙 기반 모드는 결정론적이지만 **탐지 전용 패턴**(구조 재편·리듬 조정·완곡 변주 등 문맥이 필요한 것)은 고치지 못하고 플래그만 표시합니다. 등급 A/B를 목표로 하면 LLM 모드를 사용하세요.
 - 두 모드 모두 결과를 로컬 엔진으로 재검증해 **변경률 / AI 티 신호 before→after / S1·S2 세부 / 등급(LLM 모드)** 배지를 표시합니다.
@@ -107,8 +108,14 @@ LLM_MODEL=gpt-4.1-mini          # ③ 모델
 | "API 오류 404 / model_not_found" | 모델명이 해당 엔드포인트에 없습니다. 모델 ID 대소문자 규칙에 유의하세요 — z.ai는 소문자(`glm-5.3-flash`), Anthropic/Gemini/DeepSeek도 문서의 정확한 ID를 사용합니다. |
 | "API가 오류를 반환했습니다: …" | 엔드포인트가 HTTP 200과 함께 오류 본문을 반환한 것입니다(일부 게이트웨이 방식). 메시지 내용(모델 없음, 쿼터 초과 등)을 그대로 따라가면 됩니다. |
 | "응답에서 윤문 본문을 찾지 못했습니다 (finish_reason: …)" | 응답은 왔지만 본문이 비었습니다. `length`면 길이 제한으로 잘린 것이고, `content_filter`면 필터에 걸린 것입니다. 오류에 응답 본문 일부가 함께 표시됩니다. |
-| "공급자가 600초 안에 응답하지 않아 중단했습니다" (504) | 생성이 서버의 10분 상한을 넘긴 것입니다. 긴 원문(1만 자 이상)은 토큰 단위 생성 특성상 몇 분이 걸릴 수 있습니다. 원문을 절반씩 나눠 처리하거나, 더 빠른 모델(flash 계열)을 사용하세요. |
+| "공급자가 600초 안에 응답하지 않아 중단했습니다" (504) | 생성이 서버의 10분 상한을 넘긴 것입니다. 15,000자 이상은 청킹으로 자동 분할되지만 청크 하나(최대 9,000자)도 추론 모델에서는 수 분 걸릴 수 있습니다. 더 빠른 모델(flash 계열)을 사용하거나 원문을 절반으로 나눠 시도하세요. |
+| 장문을 넣었더니 API 호출이 여러 번 발생한다 | 의도된 동작입니다 — 장문 청킹(위의 「장문 청킹」 절). 본문이 청크 수만큼 병렬 호출되고 결과가 자동 병합·검증됩니다. |
 | 규칙 기반 모드에서 "원문 N건 → 결과 N건" 변화가 거의 없을 때 | 의도된 동작입니다. 47개 규칙 중 자동 수정 가능한 것(단순 치환)만 polish가 고치고, 나머지는 감지 전용(문맥 재작성 필요: 리듬·대구·관용구 등)이거나 임계 미달(예: 연결어미 쉼표는 3회+ 군집만 감지·수정)입니다. 결과 아래 패턴 칩이 남은 이유이며, 문맥까지 다듬으려면 **LLM 모드**를 사용하세요. |
+| "엔드포인트가 경로를 찾지 못했습니다(404)" | Base URL이 API 루트가 아닙니다. `/chat/completions`는 앱이 붙이므로 Base URL에는 넣지 마세요 (예: `https://api.openai.com/v1` ← O). 오류 메시지에 호출한 전체 주소와 공급자별 권장 URL이 표시됩니다. |
+| "API 응답이 JSON이 아닙니다" | Base URL 경로가 잘못됐을 가능성이 큽니다. 공급자 문서의 API 루트까지 넣으세요 (예: `https://api.openai.com/v1`, `http://localhost:11434/v1`). |
+| "API에 연결할 수 없습니다" / 연결 테스트 "✕ 연결 실패" | 서버(`bun serve.ts`)가 실행 중인지, Base URL 오타가 없는지 확인하세요. 브라우저는 로컬 서버로만 요청하므로 공급자 CORS 차단의 영향을 받지 않습니다. |
+| reasoning 모델(o1·o3·gpt-5 계열) 오류 | 이 모델들은 `temperature` 파라미터를 받지 않아서, 앱이 자동으로 뺀 채 호출합니다. 그래도 오류가 있으면 모델명을 확인하세요. |
+| 윤문이 너무 느림 | 추론 모델(GLM-5.3 계열, deepseek-reasoner 등)은 청크당 1~3분 걸릴 수 있습니다. `glm-4.6`, `deepseek-chat` 같은 비추론 모델로 바꿔보세요. |
 
 ## HTTP API
 
@@ -170,11 +177,8 @@ bun scripts/ref-check.mjs   # 출처 저장소 드리프트 점검
 ```
 
 push(main)·PR마다 GitHub Actions가 스모크 테스트, `node --check app.js`, `node --check chunking.js && node --check mcp-server.mjs`, `bun build serve.ts`를 실행합니다(`.github/workflows/ci.yml`). 변경은 main에 직접 푸시하기보다 **브랜치 → PR → CI 통과 → 병합** 흐름을 권장합니다.
-| "엔드포인트가 경로를 찾지 못했습니다(404)" | Base URL이 API 루트가 아닙니다. `/chat/completions`는 앱이 붙이므로 Base URL에는 넣지 마세요 (예: `https://api.openai.com/v1` ← O). 오류 메시지에 호출한 전체 주소와 공급자별 권장 URL이 표시됩니다. |
-| "API 응답이 JSON이 아닙니다" | Base URL 경로가 잘못됐을 가능성이 큽니다. 공급자 문서의 API 루트까지 넣으세요 (예: `https://api.openai.com/v1`, `http://localhost:11434/v1`). |
-| "API에 연결할 수 없습니다" / 연결 테스트 "✕ 연결 실패" | 서버(`bun serve.ts`)가 실행 중인지, Base URL 오타가 없는지 확인하세요. 브라우저는 로컬 서버로만 요청하므로 공급자 CORS 차단의 영향을 받지 않습니다. |
-| reasoning 모델(o1·o3·gpt-5 계열) 오류 | 이 모델들은 `temperature` 파라미터를 받지 않아서, 앱이 자동으로 뺀 채 호출합니다. 그래도 오류가 있으면 모델명을 확인하세요. |
-| 윤문이 너무 느림 | 추론 모델(GLM-5.3 계열, deepseek-reasoner 등)은 1~3분 걸릴 수 있습니다. `glm-4.6`, `deepseek-chat` 같은 비추론 모델로 바꿔보세요. |
+
+아키텍처 결정 기록(ADR)과 기능 설계 문서는 [docs/](docs/README.md)에서 관리합니다. 출처별 채택 내역은 `references.json`(SSOT), 아키텍처 결정은 docs/, 사용자 안내는 이 문서가 담당합니다.
 
 ## 파일 구성
 
@@ -190,6 +194,7 @@ mcp-server.mjs    MCP stdio 서버 — 도구 5개 (제로 디펜던시 JSON-RPC
 lib/engine.mjs    rules/prompt/chunking 로더 — serve.ts와 mcp-server.mjs 공용
 references.json   출처 레지스트리 (SSOT) — 출처별 채택/보류 내역, 규칙 ID 매핑, 점검일
 REFERENCES.md     출처 관리 문서 — 요약 표, 업데이트 절차, 새 출처 추가 기준
+docs/             설계 기록 — ADR(아키텍처 결정)·설계 문서·인덱스
 scripts/ref-check.mjs  출처 검증 + 업스트림 드리프트 점검 (bun scripts/ref-check.mjs)
 .env.sample       .env 템플릿 (공급자·키·모델 예시)
 package.json      bun 스크립트 — bun run start / test / ref-check
