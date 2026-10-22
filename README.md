@@ -4,6 +4,12 @@ AI가 쓴 한국어 글의 "AI 티"를 제거하는 윤문 웹앱. 왼쪽 패널
 
 윤문 규칙과 프롬프트는 단일 출처가 아니라 여러 출처로 구성되어 있으며, [REFERENCES.md](REFERENCES.md)로 관리합니다. 뼈대는 [epoko77-ai/im-not-ai](https://github.com/epoko77-ai/im-not-ai)(Humanize KR, MIT License)의 룰북·모놀리스 프롬프트이고, 여기에 2026-09부터 동종 저장소를 벤치마킹해 보강했습니다 — [IsaacEryn/humanizer-ko](https://github.com/IsaacEryn/humanizer-ko)(챗봇 잔여물 K 카테고리 등), [devswha/patina](https://github.com/devswha/patina)(마크업 잔재·MATTR 등 통계 탐지), [amondnet/yoonmoon](https://github.com/amondnet/yoonmoon)(과소 서술 보정). 웹 구현·서버·테스트는 이 저장소의 것입니다. 출처별 채택·보류 내역은 [`references.json`](references.json)이 단일 진실 공급원(SSOT)이며, 규칙마다 `src` 필드로 출처가 표기됩니다. 기능 업데이트 시에는 `bun scripts/ref-check.mjs`로 업스트림 드리프트를 먼저 확인하세요.
 
+## 데모
+
+예시 텍스트를 넣고 **윤문하기**를 누르는 전체 흐름 — 규칙 기반 모드(오프라인, 배지로 변경률·패턴 감소 확인)와 LLM 모드(등급 판정)가 이어서 실행됩니다.
+
+![Humanize 데모 — 규칙 기반 모드와 LLM 모드 윤문 흐름](docs/assets/demo.gif)
+
 ## 실행
 
 빌드 과정이 없는 단일 TS 서버입니다. 기본 런타임은 **Bun**이며, Node 22+에서도 동일하게 동작합니다. 의존성이 없으므로 `bun install`은 필요 없습니다.
