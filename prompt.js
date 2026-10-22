@@ -17,7 +17,7 @@
  *
  * Provenance: sources and adopted/deferred items are tracked in
  * references.json (registry SSOT — see REFERENCES.md; drift check:
- * node scripts/ref-check.mjs).
+ * bun scripts/ref-check.mjs).
  *
  * The user's text is passed as a plain user message — it is DATA, never
  * instructions (upstream prime directive #9, prompt-injection defense).

@@ -20,14 +20,14 @@ jobs:
       - name: Run smoke tests
         run: bun test.mjs
 
-      # Syntax check for the browser scripts (plain JS, no bundler)
-      - name: Syntax-check app.js
-        run: node --check app.js
-
-      - name: Syntax-check chunking.js / mcp-server.mjs
+      # Syntax check via bun build — parse without executing. app.js is a
+      # browser-only IIFE that bun test.mjs cannot import; chunking.js and
+      # mcp-server.mjs are also loaded by the tests but re-checked cheaply.
+      - name: Syntax-check app.js / chunking.js / mcp-server.mjs
         run: |
-          node --check chunking.js
-          node --check mcp-server.mjs
+          bun build app.js --outfile /dev/null
+          bun build chunking.js --outfile /dev/null
+          bun build mcp-server.mjs --target=bun --outfile /dev/null
 
       # serve.ts must type-strip/build cleanly (bun runs it without a build
       # step, so this is the closest CI-safe equivalent of "server boots")

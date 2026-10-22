@@ -379,7 +379,7 @@
       });
     } catch (e) {
       throw new Error('API에 연결할 수 없습니다. 대부분 공급자가 브라우저 직접 호출(CORS)을 차단하기 때문입니다(Z.ai·Anthropic·Gemini 등). ' +
-        'bun serve.ts (또는 node serve.ts)로 실행 중인지 확인하세요. 공급자 공식 Base URL을 그대로 입력하면 이 서버가 호출을 대행합니다. — ' + (e.message || ''));
+        'bun serve.ts로 실행 중인지 확인하세요. 공급자 공식 Base URL을 그대로 입력하면 이 서버가 호출을 대행합니다. — ' + (e.message || ''));
     }
     if (!resp.ok) {
       var errBody = await resp.text().catch(function () { return ''; });
@@ -728,7 +728,7 @@
       }
     } catch (e) {
       var port = location.port ? ':' + location.port : '';
-      els.cfgTestResult.textContent = '✕ 연결 실패 — 로컬 서버(serve.ts)에 닿지 못했습니다. bun serve.ts(또는 node serve.ts)가 실행 중인지, 이 탭이 http://localhost' + port + ' 로 열려 있는지 확인하세요. 공급자 호출은 이 서버가 대행하므로 /proxy/ 경로는 필요하지 않습니다.';
+      els.cfgTestResult.textContent = '✕ 연결 실패 — 로컬 서버(serve.ts)에 닿지 못했습니다. bun serve.ts가 실행 중인지, 이 탭이 http://localhost' + port + ' 로 열려 있는지 확인하세요. 공급자 호출은 이 서버가 대행하므로 /proxy/ 경로는 필요하지 않습니다.';
       els.cfgTestResult.style.color = '#dc2626';
     }
   });

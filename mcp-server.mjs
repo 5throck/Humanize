@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /*
  * Humanize MCP server — zero-dependency Model Context Protocol over stdio.
  *
@@ -15,8 +15,8 @@
  * initialize / notifications / ping / tools/list / tools/call. Everything
  * the server logs goes to stderr — stdout carries protocol frames only.
  *
- * Register (Claude Code):  claude mcp add humanize -- node mcp-server.mjs
- * Generic stdio config:    { "command": "node", "args": ["mcp-server.mjs"] }
+ * Register (Claude Code):  claude mcp add humanize -- bun mcp-server.mjs
+ * Generic stdio config:    { "command": "bun", "args": ["mcp-server.mjs"] }
  */
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
@@ -227,7 +227,7 @@ export function handleMessage(msg) {
   }
 }
 
-// Direct execution only (`node mcp-server.mjs`); importing for tests must
+// Direct execution only (`bun mcp-server.mjs`); importing for tests must
 // not start a readline loop.
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
