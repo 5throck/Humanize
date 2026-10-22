@@ -23,3 +23,12 @@ author: SungHyuk Park
 - 키를 다루는 코드 전체가 수백 줄 안에서 감사 가능하다. supply-chain 공격면이 없다.
 - 대가: MCP 사양 변경 시 직접 대응한다. 완화 — 노출하는 프로토콜 면(tools만)은 사양에서 가장 안정적인 부분이고, 테스트가 핸드셰이크를 고정한다.
 - 제로 디펜던시는 ai_workspace 코딩 지침의 의존성 규칙(카피레프트·상용 라이선스 의존성 회피)과도 정합된다.
+
+## Amendment — 2026-10-22: Bun 전용 정책
+
+"bun 기본 + Node 22+ 호환"이었던 상태를 **Bun 전용**으로 통일한다(사용자 결정). 코드는 표준 API만 사용하는 기존 원칙을 유지한다 — bun 전용 API(`Bun.serve` 등) 도입은 하지 않는다. 바뀌는 것은 실행·문서·CI의 Node 병기다.
+
+- `mcp-server.mjs`·`scripts/ref-check.mjs` shebang: `#!/usr/bin/env node` → `#!/usr/bin/env bun`
+- MCP 등록 문서·연결 오류 메시지 등 사용자 안내를 bun 단일 표기로 정리
+- CI 문법 검사를 `node --check` → `bun build`(parse-only, `--outfile /dev/null`)로 전환 — `app.js`는 브라우저 IIFE라 `bun test.mjs`가 로드하지 못하는 유일한 파일이라 이 방식이 필요하다(`mcp-server.mjs`는 `--target=bun` 지정)
+- serve.ts의 `NodeJS.ErrnoException` 타입 참조를 구조적 타입으로 교체

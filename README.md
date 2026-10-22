@@ -14,7 +14,7 @@ AI가 쓴 한국어 글의 "AI 티"를 제거하는 윤문 웹앱. 왼쪽 패널
 
 ## 실행
 
-빌드 과정이 없는 단일 TS 서버입니다. 기본 런타임은 **Bun**이며, Node 22+에서도 동일하게 동작합니다. 의존성이 없으므로 `bun install`은 필요 없습니다.
+빌드 과정이 없는 단일 TS 서버입니다. **Bun 전용**으로 동작합니다 — 실행·테스트·CI 전부 Bun 기준이며, 의존성이 없으므로 `bun install`도 필요 없습니다.
 
 ```bash
 bun serve.ts                 # 기본 포트 8765  (bun run start / bun run dev 와 동일)
@@ -160,8 +160,8 @@ upstream 단서에 따라 청크를 작게 만드는 것(구형 웹앱의 1,800�
 같은 엔진을 MCP 도구로 노출합니다(제로 디펜던시 stdio 구현, `mcp-server.mjs`).
 
 ```bash
-claude mcp add humanize -- node mcp-server.mjs
-# 또는 설정 JSON: { "command": "node", "args": ["mcp-server.mjs"] }  (bun mcp-server.mjs 도 가능)
+claude mcp add humanize -- bun mcp-server.mjs
+# 또는 설정 JSON: { "command": "bun", "args": ["mcp-server.mjs"] }
 ```
 
 | 도구 | 설명 |
@@ -180,11 +180,11 @@ claude mcp add humanize -- node mcp-server.mjs
 
 ```bash
 bun test.mjs        # 스모크 테스트 — 규칙 ↔ references.json 레지스트리, 청킹, MCP 핸들러
-bun serve.ts        # 로컬 실행 (node serve.ts 도 동일)
+bun serve.ts        # 로컬 실행
 bun scripts/ref-check.mjs   # 출처 저장소 드리프트 점검
 ```
 
-push(main)·PR마다 GitHub Actions가 스모크 테스트, `node --check app.js`, `node --check chunking.js && node --check mcp-server.mjs`, `bun build serve.ts`를 실행합니다(`.github/workflows/ci.yml`). 변경은 main에 직접 푸시하기보다 **브랜치 → PR → CI 통과 → 병합** 흐름을 권장합니다.
+push(main)·PR마다 GitHub Actions가 스모크 테스트(`bun test.mjs`), 문법 검사(`bun build`로 app.js·chunking.js·mcp-server.mjs), `bun build serve.ts`를 실행합니다(`.github/workflows/ci.yml`). 변경은 main에 직접 푸시하기보다 **브랜치 → PR → CI 통과 → 병합** 흐름을 권장합니다.
 
 아키텍처 결정 기록(ADR)과 기능 설계 문서는 [docs/](docs/README.md)에서 관리합니다. 출처별 채택 내역은 `references.json`(SSOT), 아키텍처 결정은 docs/, 사용자 안내는 이 문서가 담당합니다.
 

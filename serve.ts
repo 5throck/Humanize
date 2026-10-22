@@ -1,6 +1,6 @@
 /*
  * Humanize server (TypeScript) — static files + CORS proxy + .env config.
- * Run with:  bun serve.ts   (or: node serve.ts on Node >= 22)
+ * Run with:  bun serve.ts   (Bun 전용 — 모든 실행·테스트·CI가 Bun 기준)
  *
  * - GET  /env-config          -> LLM config from .env (never returns the key itself)
  * - POST /env-save            -> writes settings-dialog edits into .env and applies
@@ -809,7 +809,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.on("error", (e: NodeJS.ErrnoException) => {
+server.on("error", (e: { code?: string; message?: string }) => {
   if (e.code === "EADDRINUSE") {
     console.log(`오류: 포트 ${PORT}가 이미 사용 중입니다. 기존 서버(serve.ts·http.server 등)를 먼저 종료하세요:`);
     console.log(`    lsof -nP -iTCP:${PORT} -sTCP:LISTEN   # 프로세스 확인`);

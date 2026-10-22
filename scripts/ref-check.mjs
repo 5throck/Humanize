@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * ref-check — 출처 레지스트리(references.json) 점검 도구.
  *
@@ -9,7 +9,7 @@
  *
  * 사용:  bun scripts/ref-check.mjs          # 전체 (네트워크 필요)
  *        bun scripts/ref-check.mjs --local  # 검증만 (오프라인)
- *        (bun run ref-check / --local 도 동일. Node 22+로도 실행 가능)
+ *        (bun run ref-check / --local 도 동일)
  *
  * 업데이트 절차는 REFERENCES.md 참조. 레지스트리 자체가 SSOT다.
  */

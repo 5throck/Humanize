@@ -2,7 +2,7 @@
  * HumanizeRules — Korean de-AI polish rules for the web (multi-source).
  *
  * Provenance is tracked in references.json (registry SSOT — see
- * REFERENCES.md for the update protocol and `node scripts/ref-check.mjs`
+ * REFERENCES.md for the update protocol and `bun scripts/ref-check.mjs`
  * for upstream drift checks). Sources:
  *   - Core rulebook ported from epoko77-ai/im-not-ai (MIT License),
  *     https://github.com/epoko77-ai/im-not-ai
