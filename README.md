@@ -8,7 +8,7 @@ AI가 쓴 한국어 글의 "AI 티"를 제거하는 윤문 웹앱. 왼쪽 패널
 
 예시 텍스트를 넣고 **윤문하기**를 누르는 전체 흐름 — 규칙 기반 모드(오프라인, 배지로 변경률·패턴 감소 확인)와 LLM 모드(등급 판정)가 이어서 실행됩니다.
 
-![Humanize 데모 — 규칙 기반 모드와 LLM 모드 윤문 흐름](docs/assets/demo.gif)
+https://github.com/5throck/Humanize/raw/main/docs/assets/demo.mp4
 
 ## 실행
 
