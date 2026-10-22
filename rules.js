@@ -13,6 +13,10 @@
  *       - devswha/patina (KO/EN/ZH/JA → markup leakage J-4, thematic break J-5,
  *         fake candor gate, burstiness CV calibration, MATTR, -다 monorhythm)
  *       - amondnet/yoonmoon (과소 서술 축 → prompt-side guard only)
+ *   - Upstream sync (2026-10, im-not-ai v2.7 + isaac 1.2~1.5):
+ *       - H-1 paragraph-scoped connective clustering, E-2 narrowed to passive
+ *         progressive (~되고 있다), D-8 settling variants gated at 2+,
+ *         D-10 "~인 셈이다", C-11 detect aligned with its 3+ fix threshold
  *
  * Each rule carries a `src` array of source ids from references.json.
  * Rules WITHOUT `src` follow the core rulebook (im-not-ai).
@@ -208,7 +212,14 @@
     },
     {
       id: 'C-11', cat: 'C', name: '연결어미 직후 쉼표', severity: 1,
-      detect: function (t) { return count(t, /([가-힣](?:고|며|지만|면서|아서|어서|으나|는데)),(?=\s*[가-힣A-Za-z])/g); },
+      src: ["im-not-ai", "isaac-humanizer-ko"],
+      detect: function (t) {
+        // 2026-10: detect aligned with the 3+ fix threshold. isaac §37 (v1.4.0)
+        // rates 3~5 as tell-worthy only alongside other tells, 6+ standalone —
+        // 3+ is the middle ground available without cross-rule conditioning.
+        var c = count(t, /([가-힣](?:고|며|지만|면서|아서|어서|으나|는데)),(?=\s*[가-힣A-Za-z])/g);
+        return c >= 3 ? c : 0;
+      },
       fix: function (t) {
         // Prescription: trigger on clusters (upstream: 6+ = strong signal;
         // 3+ is already mechanical — removing the comma is always safe).
@@ -270,10 +281,15 @@
     },
     {
       id: 'D-8', cat: 'D', name: '분열문 "필요한 것은 ~이다"', severity: 2,
-      src: ["im-not-ai"],
+      src: ["im-not-ai", "isaac-humanizer-ko"],
       detect: function (t) {
-        // 문제는/핵심은/관건은/답은 명사 변종: upstream D-8 expansion.
-        return count(t, /(필요한|중요한) (것은|건) [가-힣A-Za-z0-9]+(이다|다)\.|(문제는|핵심은|관건은|답은) [가-힣A-Za-z0-9]+(이다|다)\./g);
+        // 분열문(필요한/중요한 것은)은 1회부터 발동. 문제는/핵심은 계열과
+        // "~다는 점이다"는 결산 관용이라 2회+에서만 잡는다 — isaac §27/§36
+        // (2026-10): "「문제는 ~다」 한 번은 사람도 흔히 쓴다".
+        var cleft = count(t, /(필요한|중요한) (것은|건) [가-힣A-Za-z0-9]+(이다|다)\./g);
+        var settle = count(t, /(문제는|핵심은|관건은|답은) [가-힣A-Za-z0-9]+(이다|다)\./g)
+                   + count(t, /(다|라)는 점이다[.!?]/g);
+        return cleft + (settle >= 2 ? settle : 0);
       },
       fix: function (t) {
         // Only sentence-initial, single-noun predicates — "필요한 것은 방향이다."
@@ -297,8 +313,10 @@
     },
     {
       id: 'D-10', cat: 'D', name: '도치 결산 "~하는 이유다"', severity: 2,
+      src: ["im-not-ai", "isaac-humanizer-ko"],
       detect: function (t) {
-        var c = count(t, /(하는 이유다|기 때문이다)[.!?]?\s*$/gm);
+        // "~인 셈이다" 변이: isaac §36 결산 공식 (2026-10).
+        var c = count(t, /(하는 이유다|기 때문이다|인 셈이다)[.!?]?\s*$/gm);
         return c >= 2 ? c : 0;
       }
     },
@@ -337,11 +355,17 @@
       }
     },
     {
-      id: 'E-2', cat: 'E', name: '종결어미 반복 / "~고 있다" 남발', severity: 2,
+      // 2026-10 sync: among progressives only PASSIVE progressive is a tell —
+      // active "추진하고 있다" is equally common in human writing (upstream
+      // A-20 "~되고 있다/~지고 있다" 한 문단 3회+; isaac §8 v1.4.0 converged).
+      // "가지고 있다" is A-7's territory, excluded via lookbehind.
+      id: 'E-2', cat: 'E', name: '종결어미 반복 / 피동 진행 "~되고 있다" 밀집', severity: 2,
+      src: ["im-not-ai", "isaac-humanizer-ko"],
       detect: function (t) {
-        var geuda = count(t, /고 (있[다니]|있습니다)/g);
+        var passive = Math.max.apply(null,
+          paragraphCounts(t, /(?<!가)(되|지)고 (있[다니]|있습니다)/g).concat(0));
         var streak = endingStreak(t);
-        return Math.max(geuda >= 6 ? geuda : 0, streak >= 4 ? streak : 0);
+        return Math.max(passive >= 3 ? passive : 0, streak >= 4 ? streak : 0);
       }
     },
     {
@@ -399,6 +423,25 @@
     },
 
     // --- H. Connective overuse -----------------------------------------------------
+    {
+      // upstream v2.7 redefinition (was: document 5회+ S1 대량 제거): a cluster is
+      // ONE paragraph with 3+ sentence-initial additive connectives. Fix stays
+      // LLM-side ("그 문단에서 절반가량" — which half depends on logic flow), and
+      // upstream demoted it out of its fast rulebook (모델 의존 신호: 사람 문단
+      // 밀도 0.43) — adopted detect-only. isaac §34 (2026-10) converged on the
+      // same paragraph-3+ condition. "즉" is H-4's territory, excluded here.
+      id: 'H-1', cat: 'H', name: '문두 접속사 한 문단 밀집("또한/따라서/나아가")', severity: 2,
+      src: ["im-not-ai", "isaac-humanizer-ko"],
+      detect: function (t) {
+        var re = /(^|[.!?]\s+)(또한|따라서|나아가|아울러|게다가|더욱이)(?=[,.]?\s)/gm;
+        var best = 0;
+        paragraphs(t).forEach(function (p) {
+          var m = p.match(re);
+          if (m && m.length > best) best = m.length;
+        });
+        return best >= 3 ? best : 0;
+      }
+    },
     {
       id: 'H-4', cat: 'H', name: '"즉" 남발', severity: 2,
       detect: function (t) { return count(t, /(^|[.!?]\s+)즉(,|:)?\s+/gm); },
@@ -572,6 +615,20 @@
       .split(/(?<=[.!?])\s+/)
       .map(function (s) { return s.trim(); })
       .filter(Boolean);
+  }
+
+  // Paragraph-scoped density (H-1, E-2): blank-line separated blocks.
+  function paragraphs(text) {
+    return text.split(/\n\s*\n/).map(function (p) { return p.trim(); }).filter(Boolean);
+  }
+
+  // Per-paragraph match counts for a global regex — density rules compare the
+  // MAX paragraph, never the document total.
+  function paragraphCounts(text, re) {
+    return paragraphs(text).map(function (p) {
+      var m = p.match(re);
+      return m ? m.length : 0;
+    });
   }
 
   function sentenceLengths(text) {

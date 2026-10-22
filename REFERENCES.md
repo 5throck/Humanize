@@ -15,11 +15,11 @@
 
 | id | 저장소 | role | 우리가 가져온 것 |
 |---|---|---|---|
-| `im-not-ai` | [epoko77-ai/im-not-ai](https://github.com/epoko77-ai/im-not-ai) | **upstream** | 룰북(A~J) 전체, 철칙·자체검증·등급 체계 (기본 출처) |
-| `isaac-humanizer-ko` | [IsaacEryn/humanizer-ko](https://github.com/IsaacEryn/humanizer-ko) | benchmark | A-8 보여지/쓰여지, K 카테고리(챗봇 잔여물), 2-pass 자문 루프, 군집 원칙 |
+| `im-not-ai` | [epoko77-ai/im-not-ai](https://github.com/epoko77-ai/im-not-ai) | **upstream** | 룰북(A~J) 전체, 철칙·자체검증·등급 체계 (기본 출처). v2.7(2026-10): H-1 문단 밀집 재정의, E-2 피동 진행 한정, A-11 보수화 |
+| `isaac-humanizer-ko` | [IsaacEryn/humanizer-ko](https://github.com/IsaacEryn/humanizer-ko) | benchmark | A-8 보여지/쓰여지, K 카테고리(챗봇 잔여물), 2-pass 자문 루프, 군집 원칙. v1.4(2026-10): 임계 교정(결산 2회+·피동 진행 한정), 역주입 자가 점검 |
 | `patina` | [devswha/patina](https://github.com/devswha/patina) | benchmark | J-4 마크업 잔재, J-5 구분선 과다, E-3 평서 단조, E-4 MATTR, 극성 반전 스캔 |
 | `yoonmoon` | [amondnet/yoonmoon](https://github.com/amondnet/yoonmoon) | benchmark | 과소 서술 보정 패스 (프롬프트 절차 4) |
-| `dotori-korean-humanizer` | [dotoricode/korean-humanizer](https://github.com/dotoricode/korean-humanizer) | reference | 오탐 화이트리스트 발상, eval fixture 방식 |
+| `dotori-korean-humanizer` | [dotoricode/korean-humanizer](https://github.com/dotoricode/korean-humanizer) | reference | 오탐 화이트리스트 발상, eval fixture 방식. v1.1(2026-10): 여섯 간결화 기준의 의미 보존 축(철칙 1) |
 | `hjongc-humanizer-kr` | [hjongc/humanizer-kr](https://github.com/hjongc/humanizer-kr) | reference | 미채택 — 원본과 고도 중복 (사유는 references.json) |
 
 세부 채택 내역(어떤 규칙·프롬프트 라인에 반영됐는지)과 **보류 목록(deferred)** — 다음 기능 업데이트 때 다시 검토할 후보 — 은 `references.json`의 각 출처 항목을 참고하세요.
