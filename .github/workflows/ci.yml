@@ -20,9 +20,14 @@ jobs:
       - name: Run smoke tests
         run: bun test.mjs
 
-      # Syntax check for the browser script (plain JS, no bundler)
+      # Syntax check for the browser scripts (plain JS, no bundler)
       - name: Syntax-check app.js
         run: node --check app.js
+
+      - name: Syntax-check chunking.js / mcp-server.mjs
+        run: |
+          node --check chunking.js
+          node --check mcp-server.mjs
 
       # serve.ts must type-strip/build cleanly (bun runs it without a build
       # step, so this is the closest CI-safe equivalent of "server boots")

@@ -338,20 +338,22 @@
     renderStats(before, after, res.applied, rate, 'rules');
   }
 
-  async function polishLlm(text) {
+  function setProgress(msg) {
+    els.output.classList.remove('is-empty');
+    els.output.innerHTML = '<p class="output-placeholder">' + esc(msg) + '</p>';
+  }
+
+  // One chat/completions round-trip with the humanize system prompt.
+  // Returns the cleaned polish text. `sizeHint` sizes the GLM output budget
+  // (per-chunk length in chunked mode, full length in single-call mode).
+  async function llmChatOnce(userContent, chat, sizeHint) {
     var cfg = state.llm;
-    if (!cfg.apiKey && !envKeyConfigured()) {
-      var err = new Error('API 키가 없습니다. .env 파일(LLM_API_KEY)에 등록하거나 설정창에서 저장하세요. (다른 탭·다른 주소에서 저장한 설정은 여기에 적용되지 않습니다.)');
-      err.noKey = true;
-      throw err;
-    }
     var baseUrl = cleanStr(cfg.baseUrl, LLM_DEFAULTS.baseUrl);
-    var chat = chatRequest(baseUrl);
     var body = {
       model: cfg.model,
       messages: [
         { role: 'system', content: HumanizePrompt.system(els.genre.value) },
-        { role: 'user', content: text }
+        { role: 'user', content: userContent }
       ]
     };
     // No temperature on purpose: some models reject it outright
@@ -361,7 +363,7 @@
     // budget (empty content, finish_reason "length"). For GLM on Zhipu-family
     // endpoints, disable thinking and size the output cap with the input.
     if (/^glm/i.test(cfg.model) && /z\.ai|bigmodel\.cn/i.test(baseUrl)) {
-      body.max_tokens = Math.min(131072, Math.max(8192, text.length * 2));
+      body.max_tokens = Math.min(131072, Math.max(8192, sizeHint * 2));
       body.thinking = { type: 'disabled' };
     }
     // With no browser-side key, leave Authorization unset — serve.ts injects
@@ -436,12 +438,76 @@
 
     // Strip a fenced wrapper if the model added one despite instructions.
     out = out.replace(/^```(?:markdown|md|text)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+    return out;
+  }
 
+  async function polishLlm(text) {
+    var cfg = state.llm;
+    if (!cfg.apiKey && !envKeyConfigured()) {
+      var err = new Error('API 키가 없습니다. .env 파일(LLM_API_KEY)에 등록하거나 설정창에서 저장하세요. (다른 탭·다른 주소에서 저장한 설정은 여기에 적용되지 않습니다.)');
+      err.noKey = true;
+      throw err;
+    }
+    var chat = chatRequest(cleanStr(cfg.baseUrl, LLM_DEFAULTS.baseUrl));
+
+    // Long-text path (upstream im-not-ai chunking port): split losslessly,
+    // rewrite body chunks in parallel, merge with ratio validation. Chunking
+    // exists because per-call rulebook reload was the token explosion —
+    // the system prompt here is shared, only the chunk text goes out.
+    if (window.HumanizeChunking && text.length >= HumanizeChunking.constants.RECOMMEND_MIN) {
+      var plan = HumanizeChunking.plan(text);
+      if (plan.recommended) {
+        await polishLlmChunked(text, plan, chat);
+        return;
+      }
+    }
+
+    var out = await llmChatOnce(text, chat, text.length);
     var before = HumanizeRules.analyze(text);
     var after = HumanizeRules.analyze(out);
     var rate = HumanizeRules.changeRate(text, out);
     renderOutput(out);
     renderStats(before, after, null, rate, 'llm');
+  }
+
+  async function polishLlmChunked(text, plan, chat) {
+    var bodyChunks = [];
+    plan.chunks.forEach(function (c) {
+      if (!c.passthrough) bodyChunks.push(c);
+    });
+    setProgress('장문 감지 — 본문 ' + bodyChunks.length + '개 청크로 나눠 윤문합니다' +
+      (plan.chunks.length > bodyChunks.length ? ' (말미 각주 블록 ' + (plan.chunks.length - bodyChunks.length) + '개는 원문 그대로 유지)' : '') + '…');
+
+    // Upstream orchestrates chunks with max 4 concurrent monolith calls.
+    var CONCURRENCY = 4;
+    var results = new Array(bodyChunks.length);
+    var next = 0, done = 0;
+    async function worker() {
+      while (next < bodyChunks.length) {
+        var my = next++;
+        var c = bodyChunks[my];
+        // The [청크 컨텍스트] header keeps the model from inventing
+        // 서두/결말 or merging the heading into body sentences.
+        results[my] = await llmChatOnce(c.header + '\n' + c.text, chat, c.text.length);
+        done++;
+        setProgress('청크 윤문 중 ' + done + '/' + bodyChunks.length + '…');
+      }
+    }
+    var workers = [];
+    for (var i = 0; i < Math.min(CONCURRENCY, bodyChunks.length); i++) workers.push(worker());
+    await Promise.all(workers);
+
+    var merged = HumanizeChunking.merge(text, plan, results);
+    var before = HumanizeRules.analyze(text);
+    var after = HumanizeRules.analyze(merged.text);
+    var rate = HumanizeRules.changeRate(text, merged.text);
+    renderOutput(merged.text);
+    renderStats(before, after, null, rate, 'llm');
+    if (merged.warnings.length) {
+      // 유실/증식 ratio warnings — review hints, not fatal (mirrors upstream
+      // reassemble_chunks --strict=false behavior).
+      els.outMeta.textContent += ' ⚠ ' + merged.warnings.join(' / ');
+    }
   }
 
   async function run() {

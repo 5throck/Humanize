@@ -35,13 +35,20 @@
           "rules": ["H-1", "E-2", "C-11"],
           "prompt": ["A-11/E-2/H-1 룰북 라인", "절차 3 ③ 새 티 역주입 점검(자체검증 C-11 증가 실패 근거)"],
           "date": "2026-10-22"
+        },
+        {
+          "what": "장문 청킹 파이프라인 포팅 (2026-10) — scripts/prepare_monolith_input.py의 compute_chunk_spans(헤딩 강제 컷+글루, 문단 그리디 패킹, 4천자 초과 문장 폴백, 말미 각주 passthrough, offset 구간 무손실 self-check)와 reassemble_chunks.py의 병합 검증(공백 복원 항등, 0.5x 유실/2x 증식 경고, 빈 결과 중단)을 chunking.js로 이식. 상수는 upstream 실측값 그대로(권장 15,000 / 목표 7,000 / 상한 9,000 / 문장 폴백 4,000) — '웹앱 1,800자는 flash-lite 전제라 이식 금지' 단서 준수. LLM 모드에 병렬 ≤4 적용, [청크 컨텍스트] 헤더+공유 시스템 프롬프트로 콜마다 룰북 재로드 방지. chunking.js는 HTTP API(/api/chunk·merge)와 MCP 도구(humanize_chunk·merge)로도 노출.",
+          "targets": { "chunking": "chunking.js 전체 + app.js LLM 청킹 경로 + serve.ts/mcp-server.mjs 노출" },
+          "date": "2026-10-22"
         }
       ],
       "deferred": [
         "D-14 v2.7 확장 — 그 외 개념 은유(청구서·과실·주춧돌 문서 3회+)·관통 은유 어근 3회+: 다의어 오탐(과실=책임/과일)과 어근 군집 추적이 필요해 LLM 영역",
         "A-16 대명사 선행어 판정(직전 2문장 후보 수 기준, v2.7) — 문맥 판단 필요, 규칙화 불가",
         "G-3 안전 균형 lexicon — upstream 스스로 hold 처리(실증 부족, 한국어 산문 발동 문서 0편). 미포팅 유지가 정답으로 확인됨",
-        "라우터 서수 열거 캡·comma_segment_length z 제외(PR #168/#169) — 내부 Python 스크립트 전용, 웹 포트 무관"
+        "라우터 서수 열거 캡·comma_segment_length z 제외(PR #168/#169) — 내부 Python 스크립트 전용, 웹 포트 무관",
+        "청킹 전 문서 단위 진단 1콜 공유(02_diagnosis.md) — 진단 전용 에이전트가 없어 재현 불가. 진단 경로 도입 시 재검토",
+        "청크 경계 이음매 국소 패치(경계 전후 2문단만 monolith 재호출) — 추가 LLM 호출 1회 비용. 웹 LLM 모드는 청크 헤더의 '서두·결말 새로 만들기 금지'로 1차 방어, 불만 쌓이면 도입"
       ],
       "last_checked": "2026-10-22"
     },
