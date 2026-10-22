@@ -9,6 +9,9 @@
  *   Gemini targets the OpenAI-shaped browser request is translated to the provider's
  *   native protocol (Messages API / generateContent) and the response back, so the
  *   browser always speaks OpenAI chat/completions.
+ * - POST /api/*               -> deterministic rules engine over HTTP (analyze,
+ *   polish, prompt, chunk, merge) — same payloads as the MCP tools in
+ *   mcp-server.mjs; both reuse the browser files via lib/engine.mjs.
  *
  * Provider selection (co-newbiz llm.ts convention, preset mode):
  *   LLM_PROVIDER = zai | zai-coding | openai | anthropic | gemini | deepseek |
@@ -22,6 +25,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { loadEngine } from "./lib/engine.mjs";
 
 const ROOT = path.dirname(new URL(import.meta.url).pathname);
 
@@ -490,8 +494,7 @@ async function proxyPost(req: http.IncomingMessage, res: http.ServerResponse, ta
   await forwardChat(req, res, target, req.headers["authorization"]);
 }
 
-/**
- * POST /llm/chat/completions with `X-Target-URL: <provider Base URL>`.
+/** POST /llm/chat/completions with `X-Target-URL: <provider Base URL>`.
  * Lets the browser configure the provider's OFFICIAL Base URL verbatim —
  * the local server performs the actual call (CORS) and appends
  * /chat/completions to the target base itself.
@@ -515,6 +518,153 @@ async function llmPost(req: http.IncomingMessage, res: http.ServerResponse): Pro
   }
   const chatUrl = new URL(target.toString().replace(/\/+$/, "") + "/chat/completions");
   await forwardChat(req, res, chatUrl, req.headers["authorization"]);
+}
+
+// ---------------------------------------------------------------------------
+// /api/* — deterministic rules engine over HTTP. Zero LLM calls; the same
+// engine the browser runs, loaded once at startup via lib/engine.mjs.
+// Payloads mirror the MCP tools in mcp-server.mjs.
+// ---------------------------------------------------------------------------
+
+const ENGINE = loadEngine();
+const { Rules, Prompt, Chunking } = ENGINE;
+
+// Mirrors app.js MAX_CHARS — the UI cannot send more either.
+const MAX_API_CHARS = 30_000;
+// chunk/merge exist FOR long documents; a bigger ceiling is the point, but
+// keep a hard stop so a runaway client cannot OOM the server.
+const MAX_CHUNK_API_CHARS = 200_000;
+const GENRES = ["auto", "column", "report", "blog", "formal"];
+
+interface ApiBody {
+  text?: unknown;
+  genre?: unknown;
+  original?: unknown;
+  rewritten?: unknown;
+  target?: unknown;
+  max?: unknown;
+}
+
+async function readJsonBody(req: http.IncomingMessage): Promise<ApiBody> {
+  let body: ApiBody;
+  try {
+    body = JSON.parse((await readBody(req)).toString("utf-8") || "{}") as ApiBody;
+  } catch {
+    throw new ApiError(400, "본문이 올바른 JSON이 아닙니다.");
+  }
+  if (typeof body !== "object" || body === null) throw new ApiError(400, "본문이 올바른 JSON이 아닙니다.");
+  return body;
+}
+
+class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function requireText(v: unknown, cap = MAX_API_CHARS): string {
+  if (typeof v !== "string" || !v.trim()) {
+    throw new ApiError(400, '"text"(비어 있지 않은 문자열)가 필요합니다.');
+  }
+  if (v.length > cap) {
+    throw new ApiError(
+      413,
+      `text가 ${cap.toLocaleString("ko-KR")}자를 초과합니다 (현재 ${v.length.toLocaleString("ko-KR")}자). ` +
+        (cap === MAX_API_CHARS ? "/api/chunk로 분할하거나 나눠 호출하세요." : "더 작은 문서로 나눠 호출하세요."),
+    );
+  }
+  return v;
+}
+
+function chunkOpts(body: ApiBody): { target?: number; max?: number } {
+  const opts: { target?: number; max?: number } = {};
+  if (body.target !== undefined) {
+    if (typeof body.target !== "number") throw new ApiError(400, '"target"은 숫자(문자 수)여야 합니다.');
+    opts.target = body.target;
+  }
+  if (body.max !== undefined) {
+    if (typeof body.max !== "number") throw new ApiError(400, '"max"는 숫자(문자 수)여야 합니다.');
+    opts.max = body.max;
+  }
+  return opts;
+}
+
+async function apiPost(req: http.IncomingMessage, res: http.ServerResponse, pathName: string): Promise<void> {
+  let body: ApiBody;
+  try {
+    body = await readJsonBody(req);
+  } catch (e) {
+    sendError(res, (e as ApiError).status ?? 400, String((e as Error)?.message ?? e));
+    return;
+  }
+  try {
+    switch (pathName) {
+      case "/api/analyze": {
+        sendJson(res, 200, Rules.analyze(requireText(body.text)));
+        return;
+      }
+      case "/api/polish": {
+        const text = requireText(body.text);
+        const before = Rules.analyze(text);
+        const pol = Rules.polish(text);
+        const after = Rules.analyze(pol.text);
+        const rate = Rules.changeRate(text, pol.text);
+        sendJson(res, 200, {
+          text: pol.text,
+          applied: pol.applied,
+          before,
+          after,
+          changeRate: rate,
+          grade: Rules.grade(after, rate),
+        });
+        return;
+      }
+      case "/api/prompt": {
+        const genre = body.genre === undefined || body.genre === null ? "auto" : body.genre;
+        if (typeof genre !== "string" || !GENRES.includes(genre)) {
+          throw new ApiError(400, `"genre"는 ${GENRES.join("|")} 중 하나여야 합니다.`);
+        }
+        sendJson(res, 200, { genre, system: Prompt.system(genre) });
+        return;
+      }
+      case "/api/chunk": {
+        const text = requireText(body.text, MAX_CHUNK_API_CHARS);
+        const plan = Chunking.plan(text, chunkOpts(body));
+        sendJson(res, 200, plan);
+        return;
+      }
+      case "/api/merge": {
+        const original = requireText(body.original, MAX_CHUNK_API_CHARS);
+        if (!Array.isArray(body.rewritten)) {
+          throw new ApiError(400, '"rewritten"(본문 청크 순서의 윤문 결과 배열)이 필요합니다.');
+        }
+        // The plan is deterministic, so recomputing it here from the same
+        // original (+same target/max) reproduces the caller's chunk order;
+        // merge() re-verifies losslessness against the original anyway.
+        const plan = Chunking.plan(original, chunkOpts(body));
+        const merged = Chunking.merge(original, plan, body.rewritten as string[]);
+        const after = Rules.analyze(merged.text);
+        const rate = Rules.changeRate(original, merged.text);
+        sendJson(res, 200, {
+          text: merged.text,
+          warnings: merged.warnings,
+          chunks: merged.chunks,
+          after,
+          changeRate: rate,
+          grade: Rules.grade(after, rate),
+        });
+        return;
+      }
+      default:
+        sendError(res, 404, `알 수 없는 API 경로: ${pathName} (사용 가능: /api/analyze /api/polish /api/prompt /api/chunk /api/merge)`);
+    }
+  } catch (e) {
+    // ChunkingError and validation failures are caller errors → 400.
+    const status = e instanceof ApiError ? e.status : 400;
+    sendError(res, status, String((e as Error)?.message ?? e));
+  }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -623,6 +773,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && pathName.startsWith("/api/")) {
+      await apiPost(req, res, pathName);
+      return;
+    }
+
     if (req.method === "POST" && pathName.startsWith("/proxy/")) {
       await proxyPost(req, res, pathName);
       return;
@@ -667,7 +822,9 @@ server.on("error", (e: NodeJS.ErrnoException) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Humanize: http://localhost:${PORT}  (CORS proxy: /proxy/<host>/<path>)`);
+  console.log(
+    `Humanize: http://localhost:${PORT}  (API: /api/analyze ·polish ·prompt ·chunk ·merge | CORS proxy: /proxy/<host>/<path>)`,
+  );
   const provs = configuredProviders();
   let selDesc: string;
   if (SELECTED.mode === "preset" && SELECTED.preset) {

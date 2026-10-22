@@ -6,6 +6,14 @@ const sandbox = { window: {} };
 new Function('window', src)(sandbox.window);
 const HR = sandbox.window.HumanizeRules;
 
+// Chunking + MCP share the same engine loader used by serve.ts.
+const sandbox2 = { window: {} };
+for (const f of ['rules.js', 'prompt.js', 'chunking.js']) {
+  new Function('window', readFileSync(new URL(`./${f}`, import.meta.url), 'utf8'))(sandbox2.window);
+}
+const HC = sandbox2.window.HumanizeChunking;
+const { handleMessage } = await import('./mcp-server.mjs');
+
 let failures = 0;
 function check(name, cond, detail = '') {
   if (cond) console.log(`  ok  ${name}`);
@@ -265,6 +273,134 @@ for (const m of src.matchAll(srcFieldRe)) {
   }
 }
 check('adopted rules mapped', mapped >= 10, String(mapped));
+
+// ---------------------------------------------------------------------------
+// Chunking (chunking.js) — JS port of im-not-ai prepare_monolith_input.py +
+// reassemble_chunks.py. Upstream constants: recommend ≥15,000 / target 7,000 /
+// cap 9,000 / sentence fallback 4,000.
+console.log('# chunking: lossless split + merge');
+
+function filler(n, seed) {
+  // Sentence-shaped filler: '. ' boundaries exist (sentence fallback works)
+  // but no translation-ese patterns that rules.js would care about.
+  const piece = `제${seed} 항목은 실측 결과를 다룬다. 수치는 매주 갱신된다. 담당자가 검토했다. `;
+  let s = '';
+  while (s.length < n) s += piece + `${s.length}자 지점. `;
+  return s.slice(0, n).trimEnd();
+}
+function buildDoc() {
+  const parts = [];
+  for (let s = 1; s <= 5; s++) {
+    parts.push(`## ${s}. 테스트 절`);
+    for (let p = 0; p < 3; p++) parts.push(filler(420, s * 10 + p));
+  }
+  return parts.join('\n\n');
+}
+
+const doc = buildDoc();
+const small = HC.plan(doc, { target: 1500, max: 2200 });
+check('chunking: multiple body chunks with small target', small.chunks.filter(c => !c.passthrough).length >= 2,
+  `got ${small.chunks.length}`);
+check('chunking: lossless (concat === original)', small.chunks.map(c => c.text).join('') === doc);
+check('chunking: every chunk has a context header', small.chunks.filter(c => !c.passthrough).every(c => c.header?.startsWith('[청크 컨텍스트]')));
+check('chunking: no body chunk ends with a heading', small.chunks.filter(c => !c.passthrough).every(c => {
+  const last = c.text.replace(/\s+$/, '').slice(c.text.replace(/\s+$/, '').lastIndexOf('\n') + 1);
+  return !/^#{1,6}\s|^\d+\.\s|^\([가-힣0-9]+\)/.test(last);
+}));
+check('chunking: heading chunks start with heading', small.chunks.filter(c => !c.passthrough)[1]?.startsWithHeading === true);
+
+// Merge round-trip identity: feeding the ORIGINAL chunk texts back must
+// reproduce the original exactly (공백 복원 항등).
+const roundTrip = HC.merge(doc, small, small.chunks.filter(c => !c.passthrough).map(c => c.text));
+check('chunking: merge identity (원문 재투입 = 원문)', roundTrip.text === doc && roundTrip.warnings.length === 0,
+  JSON.stringify(roundTrip.warnings));
+
+// Ratio validation: halving a body chunk warns 유실, doubling warns 증식.
+const bodyCount = small.chunks.filter(c => !c.passthrough).length;
+const bodyTexts = small.chunks.filter(c => !c.passthrough).map(c => c.text);
+const halved = HC.merge(doc, small, bodyTexts.map((t, i) => i === 0 ? t.slice(0, Math.floor(t.length * 0.4)) : t));
+check('chunking: 유실 의심 warning at <0.5 ratio', halved.warnings.some(w => w.includes('유실 의심')), JSON.stringify(halved.warnings));
+const grown = HC.merge(doc, small, bodyTexts.map((t, i) => i === 0 ? t + t + t : t));
+check('chunking: 증식 의심 warning at >2.0 ratio', grown.warnings.some(w => w.includes('증식 의심')), JSON.stringify(grown.warnings));
+let emptyThrew = false;
+try { HC.merge(doc, small, bodyTexts.map((t, i) => i === 0 ? '' : t)); } catch { emptyThrew = true; }
+check('chunking: empty rewritten body → hard error (유실 사고)', emptyThrew);
+let countThrew = false;
+try { HC.merge(doc, small, bodyTexts.slice(1)); } catch { countThrew = true; }
+check('chunking: mismatched part count → error', countThrew);
+
+// Footnote passthrough: trailing \d+) block is excluded from rewriting.
+const fnDoc = buildDoc() + '\n\n1) 첫 번째 각주 — 출처 명시.\n2) 두 번째 각주 — 조사 방법.\n3) 세 번째 각주 — 보조 자료.';
+const fnPlan = HC.plan(fnDoc, { target: 1500, max: 2200 });
+const fnLast = fnPlan.chunks[fnPlan.chunks.length - 1];
+check('chunking: trailing footnote block is passthrough', fnLast.passthrough === true, JSON.stringify(fnPlan.chunks.map(c => c.passthrough)));
+check('chunking: passthrough chunk has no header', fnLast.header === null);
+check('chunking: footnote chunk keeps whole block', fnLast.text.includes('1) 첫 번째 각주') && fnLast.text.includes('3) 세 번째 각주'));
+
+// Below recommend threshold → single body chunk, not recommended.
+const tiny = HC.plan('첫 문단이다.\n\n둘째 문단이다.');
+check('chunking: short text not recommended, single chunk', tiny.recommended === false && tiny.chunks.length === 1, JSON.stringify({ rec: tiny.recommended, n: tiny.chunks.length }));
+
+// 20k doc with default constants → recommended, ≥2 body chunks.
+const big = buildDoc() + '\n\n' + buildDoc() + '\n\n' + filler(4000, 99);
+const bigPlan = HC.plan(big);
+check('chunking: 25k+ doc recommended with default constants', bigPlan.recommended === true && bigPlan.chunks.filter(c => !c.passthrough).length >= 2,
+  `rec=${bigPlan.recommended} chunks=${bigPlan.chunks.length}`);
+
+// Sentence fallback: one >4,000-char paragraph with boundaries splits fine.
+const longPara = filler(5200, 77);
+const paraPlan = HC.plan('머리말이다.\n\n' + longPara, { target: 2500, max: 4000 });
+check('chunking: >4k paragraph splits at sentence boundaries', paraPlan.chunks.filter(c => !c.passthrough).length >= 2,
+  `got ${paraPlan.chunks.length}`);
+check('chunking: sentence split stays lossless', paraPlan.chunks.map(c => c.text).join('') === '머리말이다.\n\n' + longPara);
+
+// Unsplittable run warning: >4k paragraph with NO sentence boundary.
+const runDoc = '가나다라마바사아자차'.repeat(600); // 5,400자, 종결부호+공백 없음
+const runPlan = HC.plan(runDoc);
+check('chunking: unsplittable long run warns', runPlan.warnings.some(w => w.includes('초장 구간')), JSON.stringify(runPlan.warnings));
+
+let lossThrew = false;
+try {
+  // Corrupt the plan so the tiling check must fail: spans with a GAP between
+  // them do not concatenate back to the original.
+  HC.merge('짧은 원문입니다.', {
+    chunks: [
+      { index: 1, total: 2, start: 0, end: 2, passthrough: false },
+      { index: 2, total: 2, start: 6, end: 7, passthrough: false }
+    ]
+  }, ['가', '나']);
+} catch { lossThrew = true; }
+check('chunking: merge re-verifies losslessness against original', lossThrew);
+
+// ---------------------------------------------------------------------------
+// MCP server (mcp-server.mjs) — handler-level protocol tests.
+console.log('# mcp: stdio JSON-RPC handlers');
+const init = handleMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test' } } });
+check('mcp: initialize echoes protocolVersion + serverInfo', init?.result?.protocolVersion === '2025-06-18' && init?.result?.serverInfo?.name === 'humanize', JSON.stringify(init));
+check('mcp: notification stays silent', handleMessage({ jsonrpc: '2.0', method: 'notifications/initialized' }) === null);
+check('mcp: ping answers', handleMessage({ jsonrpc: '2.0', id: 2, method: 'ping' })?.result != null);
+const tools = handleMessage({ jsonrpc: '2.0', id: 3, method: 'tools/list' });
+check('mcp: tools/list exposes 5 tools', tools?.result?.tools?.length === 5 &&
+  ['humanize_analyze', 'humanize_polish', 'humanize_prompt', 'humanize_chunk', 'humanize_merge']
+    .every(n => tools.result.tools.some(t => t.name === n)), JSON.stringify(tools?.result?.tools?.map(t => t.name)));
+const call = (id, name, args) => handleMessage({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } });
+const mcpAnalyze = call(4, 'humanize_analyze', { text: sample });
+check('mcp: analyze returns findings JSON', JSON.parse(mcpAnalyze.result.content[0].text).findings.length > 0);
+const mcpPolish = call(5, 'humanize_polish', { text: sample });
+const polishOut = JSON.parse(mcpPolish.result.content[0].text);
+check('mcp: polish returns text + grade + changeRate', typeof polishOut.text === 'string' && polishOut.grade?.level && typeof polishOut.changeRate === 'number', JSON.stringify(polishOut).slice(0, 120));
+const mcpPrompt = call(6, 'humanize_prompt', { genre: 'column' });
+check('mcp: prompt returns system prompt', JSON.parse(mcpPrompt.result.content[0].text).system.includes('윤문 전문가'));
+const mcpChunk = call(7, 'humanize_chunk', { text: doc, target: 1500, max: 2200 });
+check('mcp: chunk returns plan with headers', JSON.parse(mcpChunk.result.content[0].text).chunks.length >= 2);
+const badMerge = call(8, 'humanize_merge', { original: doc, rewritten: ['하나'] });
+check('mcp: domain error is isError result (not protocol error)', badMerge?.result?.isError === true, JSON.stringify(badMerge).slice(0, 160));
+const badTool = call(9, 'humanize_nope', {});
+check('mcp: unknown tool → -32602', badTool?.error?.code === -32602);
+check('mcp: unknown method → -32601', handleMessage({ jsonrpc: '2.0', id: 10, method: 'x/y' })?.error?.code === -32601);
+check('mcp: oversized text rejected as tool error', call(11, 'humanize_analyze', { text: '가'.repeat(30001) }).result.isError === true);
+
+// ---------------------------------------------------------------------------
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

@@ -110,17 +110,66 @@ LLM_MODEL=gpt-4.1-mini          # ③ 모델
 | "공급자가 600초 안에 응답하지 않아 중단했습니다" (504) | 생성이 서버의 10분 상한을 넘긴 것입니다. 긴 원문(1만 자 이상)은 토큰 단위 생성 특성상 몇 분이 걸릴 수 있습니다. 원문을 절반씩 나눠 처리하거나, 더 빠른 모델(flash 계열)을 사용하세요. |
 | 규칙 기반 모드에서 "원문 N건 → 결과 N건" 변화가 거의 없을 때 | 의도된 동작입니다. 47개 규칙 중 자동 수정 가능한 것(단순 치환)만 polish가 고치고, 나머지는 감지 전용(문맥 재작성 필요: 리듬·대구·관용구 등)이거나 임계 미달(예: 연결어미 쉼표는 3회+ 군집만 감지·수정)입니다. 결과 아래 패턴 칩이 남은 이유이며, 문맥까지 다듬으려면 **LLM 모드**를 사용하세요. |
 
+## HTTP API
+
+규칙 엔진을 HTTP로도 쓸 수 있습니다(`bun serve.ts` 실행 중, JSON 본문, CORS 허용). 모두 LLM 호출이 없는 결정적 엔드포인트이며, MCP 도구와 같은 페이로드를 씁니다.
+
+| 엔드포인트 | 본문 | 반환 |
+|------------|------|------|
+| `POST /api/analyze` | `{text}` | AI 티 패턴 감지 결과(`findings`, S1/S2 합계) |
+| `POST /api/polish` | `{text}` | 윤문문 + `applied`·before/after·`changeRate`·`grade` |
+| `POST /api/prompt` | `{genre?}` (`auto/column/report/blog/formal`) | LLM 모드 시스템 프롬프트 |
+| `POST /api/chunk` | `{text, target?, max?}` | 장문 청킹 계획(아래 청킹 절 참고) |
+| `POST /api/merge` | `{original, rewritten[], target?, max?}` | 병합문 + 유실/증식 경고 + 재검증 통계 |
+
+```bash
+curl -s -X POST localhost:8765/api/polish \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"중요한 것은 신뢰다. 필요한 것은 균형이다."}'
+```
+
+`analyze`/`polish`/`prompt`는 30,000자(웹 UI 상한과 동일), `chunk`/`merge`는 200,000자까지 받습니다.
+
+## 장문 청킹 (LLM 모드)
+
+15,000자가 넘는 원문은 [im-not-ai](https://github.com/epoko77-ai/im-not-ai)의 청킹 파이프라인(`prepare_monolith_input.py` + `reassemble_chunks.py`)을 JS로 포팅해 자동으로 나눠 처리합니다.
+
+- **분할**: 헤딩 줄(`#`, `N.`, `제N장`, `가.` 등) 앞 강제 컷 + 빈 줄 문단 단위 그리디 패킹(목표 7,000자, 상한 9,000자, 4,000자 초과 문단은 문장 경계 폴백). 청크는 원문 offset 구간이라 **연결하면 원문과 정확히 일치**하고(무손실 self-check), 청크가 헤딩으로 끝나는 일은 구조적으로 금지됩니다. 말미 각주 블록(`1)` `[\d+]`)은 passthrough로 빼서 LLM에 보내지 않습니다.
+- **처리**: 본문 청크만 병렬 호출(최대 4개, upstream과 동일), 각 청크 앞에 `[청크 컨텍스트]` 헤더(서두·결말 새로 만들기 금지)를 붙입니다. 시스템 프롬프트(룰북)는 청크 수와 무관하게 하나만 씁니다 — upstream이 밝힌 토큰 폭발의 주범이 콜마다 룰북 재로드였기 때문입니다.
+- **병합·검증**: 원문 청크의 앞뒤 공백을 복원해 붙이고(원문을 그대로 재투입하면 재조립 = 원문), 청크별 글자 수 대사로 원문 절반 이하는 "유실 의심", 2배 초과는 "증식 의심" 경고를 냅니다.
+
+upstream 단서에 따라 청크를 작게 만드는 것(구형 웹앱의 1,800자 등)은 의도적으로 하지 않습니다 — 큰 모델은 대구·리듬 같은 문단 횡단 신호를 잡아야 하므로 청크가 커야 합니다.
+
+## MCP 서버
+
+같은 엔진을 MCP 도구로 노출합니다(제로 디펜던시 stdio 구현, `mcp-server.mjs`).
+
+```bash
+claude mcp add humanize -- node mcp-server.mjs
+# 또는 설정 JSON: { "command": "node", "args": ["mcp-server.mjs"] }  (bun mcp-server.mjs 도 가능)
+```
+
+| 도구 | 설명 |
+|------|------|
+| `humanize_analyze` | AI 티 패턴 감지(47개 규칙) |
+| `humanize_polish` | 규칙 기반 윤문 + 변경률·등급 |
+| `humanize_prompt` | 장르별 시스템 프롬프트 반환 |
+| `humanize_chunk` | 장문 무손실 분할(청크별 컨텍스트 헤더 포함) |
+| `humanize_merge` | 청크별 윤문 결과 병합·검증(유실/증식 경고) |
+
+에이전트 활용 패턴: `humanize_prompt`로 시스템 프롬프트를 받고, 길면 `humanize_chunk`로 나눠 각 청크를 자기 모델로 윤문한 뒤 `humanize_merge`로 합치고 경고를 확인합니다.
+
 ## 개발
 
 빌드 과정이 없는 단일 페이지 + 단일 서버입니다.
 
 ```bash
-bun test.mjs        # 스모크 테스트 — 규칙 ↔ references.json 레지스트리 일관성
+bun test.mjs        # 스모크 테스트 — 규칙 ↔ references.json 레지스트리, 청킹, MCP 핸들러
 bun serve.ts        # 로컬 실행 (node serve.ts 도 동일)
 bun scripts/ref-check.mjs   # 출처 저장소 드리프트 점검
 ```
 
-push(main)·PR마다 GitHub Actions가 스모크 테스트, `node --check app.js`, `bun build serve.ts`를 실행합니다(`.github/workflows/ci.yml`). 변경은 main에 직접 푸시하기보다 **브랜치 → PR → CI 통과 → 병합** 흐름을 권장합니다.
+push(main)·PR마다 GitHub Actions가 스모크 테스트, `node --check app.js`, `node --check chunking.js && node --check mcp-server.mjs`, `bun build serve.ts`를 실행합니다(`.github/workflows/ci.yml`). 변경은 main에 직접 푸시하기보다 **브랜치 → PR → CI 통과 → 병합** 흐름을 권장합니다.
 | "엔드포인트가 경로를 찾지 못했습니다(404)" | Base URL이 API 루트가 아닙니다. `/chat/completions`는 앱이 붙이므로 Base URL에는 넣지 마세요 (예: `https://api.openai.com/v1` ← O). 오류 메시지에 호출한 전체 주소와 공급자별 권장 URL이 표시됩니다. |
 | "API 응답이 JSON이 아닙니다" | Base URL 경로가 잘못됐을 가능성이 큽니다. 공급자 문서의 API 루트까지 넣으세요 (예: `https://api.openai.com/v1`, `http://localhost:11434/v1`). |
 | "API에 연결할 수 없습니다" / 연결 테스트 "✕ 연결 실패" | 서버(`bun serve.ts`)가 실행 중인지, Base URL 오타가 없는지 확인하세요. 브라우저는 로컬 서버로만 요청하므로 공급자 CORS 차단의 영향을 받지 않습니다. |
@@ -130,18 +179,21 @@ push(main)·PR마다 GitHub Actions가 스모크 테스트, `node --check app.js
 ## 파일 구성
 
 ```
-serve.ts          로컬 서버 — 정적 서빙, CORS 프록시, .env 구성, Anthropic/Gemini 프로토콜 변환
+serve.ts          로컬 서버 — 정적 서빙, /api/* 규칙 엔진, CORS 프록시, .env 구성, 프로토콜 변환
 index.html        화면 구조
 style.css         스타일 (Pretendard, 반응형 2패널)
 rules.js          규칙 엔진 — quick-rules 포팅(탐지/수정/변경률/등급), 규칙별 출처(src) 표기
 prompt.js         LLM 모드 시스템 프롬프트 — monolith 철칙 + 룰북
-app.js            UI 로직, LLM 클라이언트, 통계 렌더링
+chunking.js       장문 청킹 — im-not-ai 분할/병합 파이프라인 JS 포팅 (무손실 self-check 포함)
+app.js            UI 로직, LLM 클라이언트(청킹 경로 포함), 통계 렌더링
+mcp-server.mjs    MCP stdio 서버 — 도구 5개 (제로 디펜던시 JSON-RPC)
+lib/engine.mjs    rules/prompt/chunking 로더 — serve.ts와 mcp-server.mjs 공용
 references.json   출처 레지스트리 (SSOT) — 출처별 채택/보류 내역, 규칙 ID 매핑, 점검일
 REFERENCES.md     출처 관리 문서 — 요약 표, 업데이트 절차, 새 출처 추가 기준
 scripts/ref-check.mjs  출처 검증 + 업스트림 드리프트 점검 (bun scripts/ref-check.mjs)
 .env.sample       .env 템플릿 (공급자·키·모델 예시)
 package.json      bun 스크립트 — bun run start / test / ref-check
-test.mjs          규칙 엔진 + 레지스트리 매핑 테스트 (bun test.mjs)
+test.mjs          규칙 엔진 + 청킹 + MCP + 레지스트리 매핑 테스트 (bun test.mjs)
 ```
 
 `.env`는 커밋 대상이 아닙니다(`.gitignore` 참고).
