@@ -1,6 +1,8 @@
 # Humanize
 
-AI가 쓴 한국어 글의 "AI 티"를 제거하는 윤문 웹앱. 왼쪽 패널에 원문을 넣고 **윤문하기**를 누르면 오른쪽 패널에 다듬어진 글이 표시됩니다.
+[![CI](https://github.com/5throck/Humanize/actions/workflows/ci.yml/badge.svg)](https://github.com/5throck/Humanize/actions/workflows/ci.yml)
+
+AI가 쓴 한국어 글의 "AI 티"를 제거하는 윤문 웹앱. 왼쪽 패널에 원문을 넣고 **윤문하기**를 누르면 오른쪽 패널에 다듬어진 글이 표시됩니다. 규칙 엔진은 웹 UI 외에 HTTP API(`/api/*`)와 MCP 도구로도 제공됩니다.
 
 윤문 규칙과 프롬프트는 단일 출처가 아니라 여러 출처로 구성되어 있으며, [REFERENCES.md](REFERENCES.md)로 관리합니다. 뼈대는 [epoko77-ai/im-not-ai](https://github.com/epoko77-ai/im-not-ai)(Humanize KR, MIT License)의 룰북·모놀리스 프롬프트이고, 여기에 2026-09부터 동종 저장소를 벤치마킹해 보강했습니다 — [IsaacEryn/humanizer-ko](https://github.com/IsaacEryn/humanizer-ko)(챗봇 잔여물 K 카테고리 등), [devswha/patina](https://github.com/devswha/patina)(마크업 잔재·MATTR 등 통계 탐지), [amondnet/yoonmoon](https://github.com/amondnet/yoonmoon)(과소 서술 보정). 웹 구현·서버·테스트는 이 저장소의 것입니다. 출처별 채택·보류 내역은 [`references.json`](references.json)이 단일 진실 공급원(SSOT)이며, 규칙마다 `src` 필드로 출처가 표기됩니다. 기능 업데이트 시에는 `bun scripts/ref-check.mjs`로 업스트림 드리프트를 먼저 확인하세요.
 
@@ -14,7 +16,7 @@ https://github.com/user-attachments/assets/e84758cd-00c1-4592-98ef-a89ca16c77d5
 
 ## 실행
 
-빌드 과정이 없는 단일 TS 서버입니다. **Bun 전용**으로 동작합니다 — 실행·테스트·CI 전부 Bun 기준이며, 의존성이 없으므로 `bun install`도 필요 없습니다.
+빌드 과정이 없는 단일 TS 서버입니다. **Bun 전용**으로 동작합니다(Bun ≥ 1.1) — 실행·테스트·CI 전부 Bun 기준이며, 의존성이 없으므로 `bun install`도 필요 없습니다.
 
 ```bash
 bun serve.ts                 # 기본 포트 8765  (bun run start / bun run dev 와 동일)
@@ -203,6 +205,7 @@ lib/engine.mjs    rules/prompt/chunking 로더 — serve.ts와 mcp-server.mjs �
 references.json   출처 레지스트리 (SSOT) — 출처별 채택/보류 내역, 규칙 ID 매핑, 점검일
 REFERENCES.md     출처 관리 문서 — 요약 표, 업데이트 절차, 새 출처 추가 기준
 docs/             설계 기록 — ADR(아키텍처 결정)·설계 문서·인덱스
+docs/assets/      데모 영상 원본 (demo.mp4 — README의 데모는 user-attachments로 재생)
 scripts/ref-check.mjs  출처 검증 + 업스트림 드리프트 점검 (bun scripts/ref-check.mjs)
 .env.sample       .env 템플릿 (공급자·키·모델 예시)
 package.json      bun 스크립트 — bun run start / test / ref-check
@@ -221,4 +224,4 @@ test.mjs          규칙 엔진 + 청킹 + MCP + 레지스트리 매핑 테스�
 
 ## 라이선스
 
-규칙·프롬프트의 뼈대 출처인 [im-not-ai](https://github.com/epoko77-ai/im-not-ai)는 MIT License입니다(벤치마크 출처들의 라이선스는 [`references.json`](references.json)의 `license` 필드에 기록). 이 프로젝트의 코드는 MIT로 배포합니다.
+규칙·프롬프트의 뼈대 출처인 [im-not-ai](https://github.com/epoko77-ai/im-not-ai)는 MIT License입니다(벤치마크 출처들의 라이선스는 [`references.json`](references.json)의 `license` 필드에 기록). 이 프로젝트의 코드는 [MIT License](LICENSE)로 배포합니다.
