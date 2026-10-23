@@ -24,6 +24,7 @@
 | [ADR-0003](adr/0003-faithful-chunking-port.md) | upstream 청킹 파이프라인을 상수까지 그대로 JS로 포팅 | Accepted |
 | [ADR-0004](adr/0004-shared-engine-loader.md) | 브라우저 엔진 파일을 단일 로더로 재사용 — HTTP API와 MCP가 같은 엔진 공유 | Accepted |
 | [ADR-0005](adr/0005-mit-license-retention.md) | 라이선스 MIT 유지 (workspace AGPL 정책 검토 후) | Accepted |
+| [ADR-0006](adr/0006-eval-harness-no-ml-framework.md) | 오프라인 평가 하네스 — 프롬프트 개선 루프는 순수 Bun으로, ML 최적화 프레임워크는 미도입 | Accepted |
 
 ## 설계 문서 목록
 

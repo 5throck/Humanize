@@ -157,6 +157,25 @@ curl -s -X POST localhost:8765/api/polish \
 
 upstream 단서에 따라 청크를 작게 만드는 것(구형 웹앱의 1,800자 등)은 의도적으로 하지 않습니다 — 큰 모델은 대구·리듬 같은 문단 횡단 신호를 잡아야 하므로 청크가 커야 합니다.
 
+## 프롬프트 개선 루프 — 오프라인 평가 하네스
+
+`prompt.js`의 시스템 프롬프트를 고칠 때 "좋아졌는지"를 재현 가능하게 검증하는 도구다(ADR-0006). 규칙 엔진을 메트릭으로 재사용하는 순수 Bun 하네스이며, ML 최적화 프레임워크(DSPy·AdalFlow류)는 의도적으로 도입하지 않았다 — 이 프로젝트의 LLM 모드는 모놀리식 프롬프트 하나라 최적화할 그래프가 없고, 프롬프트는 references.json 큐레이션 절차를 거치는 사람의 산물이기 때문이다.
+
+```bash
+bun serve.ts                                              # LLM 모드용 (오프라인 모드는 불필요)
+bun scripts/eval.mjs                                      # ① 규칙 엔진 기준점 (오프라인, 키 불필요)
+bun scripts/eval.mjs --llm --out eval/run-a.json          # ② 현재 프롬프트의 LLM 런 저장
+bun scripts/eval.mjs --llm --prompt eval/prompt-variant.md \
+                    --out eval/run-b.json                 # ③ 변안 프롬프트로 같은 런
+bun scripts/eval.mjs --llm --compare eval/run-a.json      # ④ 등급·S1 잔존·역주입 비교
+bun scripts/bootstrap-fewshot.mjs --runs eval/run-a.json  # ⑤ 하드케이스 → few-shot 후보
+```
+
+- **코퍼스**(`eval/corpus.json`): AI 티가 있는 한국어 원문 8편(이 저장소에서 새로 쓴 합성 텍스트)과 편별 기대 신호(`expect`). 규칙 임계값이 바뀌어 픽스처가 썩으면 `bun test.mjs`가 잡아낸다. `--only col-settle`로 일부만 실행할 수 있다.
+- **LLM 호출은 이 스크립트가 공급자를 직접 두드리지 않는다** — 실행 중인 `serve.ts`의 프록시를 경유하므로 키 주입·프로토콜 변환은 웹 UI와 완전히 같은 경로를 쓴다. 실패한 픽스처는 기록만 남기고 계속 진행하며, 일시적 오류는 백오프 재시도한다.
+- **few-shot 후보는 자동 주입되지 않는다.** `bootstrap-fewshot`은 하드케이스를 ①엔진이 고칠 수 있는 S1 잔존(few-shot 예시 후보) ②역주입 회귀(프롬프트 결함 보고) ③감지 전용 잔존(룰북 갭 과제)으로 분류한 마크다운을 낼 뿐, 반영은 references.json 큐레이션 절차를 거친다.
+- **한계(중요)**: 점수는 규칙 엔진이라는 프록시 점수다. 엔진이 아는 47개 패턴밖에 보지 못하므로 "엔진 통과 ≠ 좋은 윤문"이고, 등급이 좋아진 변안이라도 런 JSON의 `text`(결과물 원문)를 사람이 읽고 최종 판단해야 한다.
+
 ## MCP 서버
 
 같은 엔진을 MCP 도구로 노출합니다(제로 디펜던시 stdio 구현, `mcp-server.mjs`).
@@ -181,9 +200,10 @@ claude mcp add humanize -- bun mcp-server.mjs
 빌드 과정이 없는 단일 페이지 + 단일 서버입니다.
 
 ```bash
-bun test.mjs        # 스모크 테스트 — 규칙 ↔ references.json 레지스트리, 청킹, MCP 핸들러
+bun test.mjs        # 스모크 테스트 — 규칙 ↔ references.json 레지스트리, 청킹, MCP 핸들러, 평가 코퍼스
 bun serve.ts        # 로컬 실행
 bun scripts/ref-check.mjs   # 출처 저장소 드리프트 점검
+bun scripts/eval.mjs        # 프롬프트 오프라인 평가 (아래 「프롬프트 개선 루프」 절)
 ```
 
 push(main)·PR마다 GitHub Actions가 스모크 테스트(`bun test.mjs`), 문법 검사(`bun build`로 app.js·chunking.js·mcp-server.mjs), `bun build serve.ts`를 실행합니다(`.github/workflows/ci.yml`). 변경은 main에 직접 푸시하기보다 **브랜치 → PR → CI 통과 → 병합** 흐름을 권장합니다.
@@ -202,11 +222,15 @@ chunking.js       장문 청킹 — im-not-ai 분할/병합 파이프라인 JS �
 app.js            UI 로직, LLM 클라이언트(청킹 경로 포함), 통계 렌더링
 mcp-server.mjs    MCP stdio 서버 — 도구 5개 (제로 디펜던시 JSON-RPC)
 lib/engine.mjs    rules/prompt/chunking 로더 — serve.ts와 mcp-server.mjs 공용
+lib/eval-core.mjs 평가 순수 로직 — 픽스처 검증·점수·런 비교·few-shot 후보 분류
+eval/corpus.json  평가 코퍼스 — AI 티 원문 8편 + 편별 기대 신호(expect 태그)
 references.json   출처 레지스트리 (SSOT) — 출처별 채택/보류 내역, 규칙 ID 매핑, 점검일
 REFERENCES.md     출처 관리 문서 — 요약 표, 업데이트 절차, 새 출처 추가 기준
 docs/             설계 기록 — ADR(아키텍처 결정)·설계 문서·인덱스
 docs/assets/      데모 영상 원본 (demo.mp4 — README의 데모는 user-attachments로 재생)
 scripts/ref-check.mjs  출처 검증 + 업스트림 드리프트 점검 (bun scripts/ref-check.mjs)
+scripts/eval.mjs  오프라인 평가 하네스 — 규칙엔진/LLM 런 + 프롬프트 A/B 비교 (아래 평가 하네스 절)
+scripts/bootstrap-fewshot.mjs  eval 런의 하드케이스 → few-shot 후보 마크다운
 .env.sample       .env 템플릿 (공급자·키·모델 예시)
 package.json      bun 스크립트 — bun run start / test / ref-check
 test.mjs          규칙 엔진 + 청킹 + MCP + 레지스트리 매핑 테스트 (bun test.mjs)

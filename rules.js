@@ -744,6 +744,10 @@
     polish: polish,
     changeRate: changeRate,
     grade: grade,
-    ruleCount: RULES.length
+    ruleCount: RULES.length,
+    // ids of rules carrying a safe auto-fix. Lets tooling (eval harness,
+    // bootstrap-fewshot) classify residuals as auto-fixable vs detect-only
+    // without duplicating rule knowledge.
+    fixableIds: RULES.filter(function (r) { return r.fix; }).map(function (r) { return r.id; })
   };
 })();
