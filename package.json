@@ -8,7 +8,8 @@
     "start": "bun serve.ts",
     "dev": "bun serve.ts",
     "test": "bun test.mjs",
-    "ref-check": "bun scripts/ref-check.mjs"
+    "ref-check": "bun scripts/ref-check.mjs",
+    "eval": "bun scripts/eval.mjs"
   },
   "engines": {
     "bun": ">=1.1"

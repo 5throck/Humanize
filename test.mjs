@@ -401,6 +401,50 @@ check('mcp: unknown method → -32601', handleMessage({ jsonrpc: '2.0', id: 10, 
 check('mcp: oversized text rejected as tool error', call(11, 'humanize_analyze', { text: '가'.repeat(30001) }).result.isError === true);
 
 // ---------------------------------------------------------------------------
+// Eval harness (lib/eval-core.mjs + eval/corpus.json) — offline prompt loop.
+console.log('# eval: corpus + scoring + bootstrap few-shot');
+const EC = await import('./lib/eval-core.mjs');
+const evalCorpus = EC.loadCorpus(new URL('./eval/corpus.json', import.meta.url));
+check('eval: corpus has >= 6 fixtures', evalCorpus.length >= 6);
+check('eval: fixableIds exposed (D-1 fixable, K-1 not)',
+  Array.isArray(HR.fixableIds) && HR.fixableIds.includes('D-1') && !HR.fixableIds.includes('K-1'),
+  JSON.stringify(HR.fixableIds));
+const corpusCheck = EC.validateCorpus(HR, evalCorpus);
+check('eval: corpus expectations all fire', corpusCheck.ok, JSON.stringify(corpusCheck.problems));
+
+// Offline baseline through the real scoring path — the fixed reference point.
+const offlineRecs = evalCorpus.map(fx => EC.evaluateFixture(HR, fx, HR.polish(fx.text).text));
+const summ = EC.summarizeRun(offlineRecs);
+check('eval: summarize counts every fixture', summ.count === evalCorpus.length);
+check('eval: offline baseline leaves hard cases (detect-only reality)', summ.hardCases.length > 0);
+const colSettle = offlineRecs.find(r => r.id === 'col-settle');
+check('eval: residuals classified fixable vs detect-only',
+  colSettle.residualS1.some(f => f.id === 'D-1' && f.fixable === true) &&
+  colSettle.residualS1.some(f => f.id === 'D-2' && f.fixable === false),
+  JSON.stringify(colSettle.residualS1));
+
+// Regression detection: a "polish" that injects a residue the original lacked.
+const rhythmFx = evalCorpus.find(f => f.id === 'long-rhythm');
+const regRec = EC.evaluateFixture(HR, rhythmFx, rhythmFx.text + '\n도움이 되셨기를 바랍니다.');
+check('eval: injected signal flagged in newSignals (K-1)',
+  regRec.newSignals.some(s => s.id === 'K-1' && s.severity === 1), JSON.stringify(regRec.newSignals));
+
+// Bootstrap split: fixable residuals → few-shot demo pairs, detect-only → gaps.
+const cands = EC.buildFewshotCandidates(HR, evalCorpus, offlineRecs);
+check('eval: bootstrap builds demo pairs for fixable residuals',
+  cands.candidates.length > 0 && cands.candidates.every(c => c.demo.input && typeof c.demo.output === 'string'));
+check('eval: bootstrap candidate set == records with >=1 fixable residual',
+  cands.candidates.length === offlineRecs.filter(r => r.residualS1.some(f => f.fixable)).length);
+check('eval: bootstrap harvests regressions',
+  EC.buildFewshotCandidates(HR, evalCorpus, [regRec]).regressions.length === 1);
+
+// Diff: identical runs must be flat (grade pair, residual, aggregate).
+const diff = EC.diffRuns(offlineRecs, offlineRecs);
+check('eval: diff of identical runs is flat',
+  diff.fixtures.every(f => f.grade.split('→')[0] === f.grade.split('→')[1] && f.s1Residual[0] === f.s1Residual[1]) &&
+  diff.base.s1Residual === diff.candidate.s1Residual);
+
+// ---------------------------------------------------------------------------
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
