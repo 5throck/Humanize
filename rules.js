@@ -17,6 +17,14 @@
  *       - H-1 paragraph-scoped connective clustering, E-2 narrowed to passive
  *         progressive (~되고 있다), D-8 settling variants gated at 2+,
  *         D-10 "~인 셈이다", C-11 detect aligned with its 3+ fix threshold
+ *   - Production corpus round (2026-10, 65-doc wiki corpus, 2,175 findings —
+ *     only false-positive classes below surfaced):
+ *       - Protected-span masking: backtick inline code (verified UI labels)
+ *         and double-quoted screen copy are masked before detect/fix and
+ *         restored after — rules never see or alter them.
+ *       - A-3 locative-noun guard (S12 줄에 있어…), G-1 상태로 guard
+ *         (버튼이 눌린 상태로 보인다), B-1/A-24 table-row skip (STRIDE-style
+ *         threat tables, deprecation records), C-11 fix context guards.
  *
  * Each rule carries a `src` array of source ids from references.json.
  * Rules WITHOUT `src` follow the core rulebook (im-not-ai).
@@ -68,12 +76,28 @@
     // --- A. Translation-ese -------------------------------------------------
     {
       id: 'A-3', cat: 'A', name: '번역투 "~에 있어(서)"', severity: 1,
-      detect: function (t) { return count(t, /([가-힣A-Za-z0-9]+)에 있어(서)?(?=[^\uAC00-\uD7A3]|$)/g) - count(t, /에 있어(요|세요)/g); },
+      // 2026-10 corpus guard: "S12 줄에 있어 찾기 어렵다" — 위치 명사 뒤
+      // "~에 있어"는 번역투 조사가 아니라 문자적 존재 서술이다. 토큰이 위치
+      // 명사(또는 비한글 접두 + 위치 명사, 예: S12줄)로 끝나면 세지도 고치지
+      // 않는다. 있어요/있어 제외는 유지.
+      detect: function (t) {
+        var re = /([가-힣A-Za-z0-9]+)에 있어(서)?(?=[^\uAC00-\uD7A3]|$)/g, m, n = 0;
+        while ((m = re.exec(t)) !== null) {
+          if (!isLocativeNoun(m[1])) n++;
+        }
+        return Math.max(0, n - count(t, /에 있어(요|세요)/g));
+      },
       fix: function (t) {
         var n = 0, out;
-        out = t.replace(/([가-힣A-Za-z0-9]+)에 있어서/g, function (m, p1) { n++; return p1 + '에서'; });
+        out = t.replace(/([가-힣A-Za-z0-9]+)에 있어서/g, function (m, p1) {
+          if (isLocativeNoun(p1)) return m;
+          n++; return p1 + '에서';
+        });
         // Only when followed by a spaced Hangul word — avoids "부산에 있어요/있어."
-        out = out.replace(/([가-힣A-Za-z0-9]+)에 있어 (?=[가-힣])/g, function (m, p1) { n++; return p1 + '에서 '; });
+        out = out.replace(/([가-힣A-Za-z0-9]+)에 있어 (?=[가-힣])/g, function (m, p1) {
+          if (isLocativeNoun(p1)) return m;
+          n++; return p1 + '에서 ';
+        });
         return { text: out, applied: n };
       }
     },
@@ -149,7 +173,13 @@
     },
     {
       id: 'A-24', cat: 'A', name: '"더 이상 ~않다" 재정의', severity: 2,
-      detect: function (t) { return count(t, /더 이상/g); }
+      // 2026-10 corpus guard: 표 행 셀의 "더 이상 지원되지 않는다"는 지원
+      // 종료 기록이지 수사적 재정의가 아니다 — 표 행은 스캔에서 제외.
+      detect: function (t) {
+        return t.split('\n').reduce(function (n, line) {
+          return isTableRow(line) ? n : n + count(line, /더 이상/g);
+        }, 0);
+      }
     },
 
     // --- B. English buzzwords ------------------------------------------------
@@ -157,11 +187,16 @@
       id: 'B-1', cat: 'B', name: '한글+괄호 영어 병기 반복', severity: 2,
       detect: function (t) { return repeatedGlossCount(t); },
       fix: function (t) {
+        // 2026-10 corpus guard: 표 행은 STRIDE 위협 표처럼 행마다 병기하는
+        // 것이 정당 — 표 행을 통째로 스캔·수정 대상에서 제외한다.
         var seen = Object.create(null), n = 0;
-        var out = t.replace(/([가-힣]{2,})\s*\(([A-Za-z][A-Za-z0-9\s\-&.]{1,40}?)\)/g, function (m, ko, en) {
-          if (!seen[ko]) { seen[ko] = true; return m; }
-          n++; return ko;
-        });
+        var out = t.split('\n').map(function (line) {
+          if (isTableRow(line)) return line;
+          return line.replace(/([가-힣]{2,})\s*\(([A-Za-z][A-Za-z0-9\s\-&.]{1,40}?)\)/g, function (m, ko, en) {
+            if (!seen[ko]) { seen[ko] = true; return m; }
+            n++; return ko;
+          });
+        }).join('\n');
         return { text: out, applied: n };
       }
     },
@@ -223,10 +258,25 @@
       fix: function (t) {
         // Prescription: trigger on clusters (upstream: 6+ = strong signal;
         // 3+ is already mechanical — removing the comma is always safe).
-        var c = count(t, /([가-힣](?:고|며|지만|면서|아서|어서|으나|는데)),(?=\s*[가-힣A-Za-z])/g);
+        // 2026-10 corpus guards (65문서 코퍼스 299건 적용 무회귀): 헤딩 줄,
+        // 표 행, 링크 라벨/[url] 구간은 건드리지 않는다. 백틱·따옴표 내부는
+        // analyze/polish의 보호 스팬 마스킹이 먼저 걸러준다.
+        var re = /([가-힣](?:고|며|지만|면서|아서|어서|으나|는데)),(?=\s*[가-힣A-Za-z])/g;
+        var c = count(t, re);
         if (c < 3) return { text: t, applied: 0 };
-        var out = t.replace(/([가-힣](?:고|며|지만|면서|아서|어서|으나|는데)),(?=\s*[가-힣A-Za-z])/g, '$1');
-        return { text: out, applied: c };
+        var n = 0;
+        var out = t.split('\n').map(function (line) {
+          if (/^[ \t]*#/.test(line) || isTableRow(line)) return line;
+          var links = [], lm, linkRe = /\[[^\]\n]*\]\([^)\n]*\)/g;
+          while ((lm = linkRe.exec(line)) !== null) links.push([lm.index, lm.index + lm[0].length]);
+          return line.replace(re, function (m, p1, offset) {
+            for (var i = 0; i < links.length; i++) {
+              if (offset >= links[i][0] && offset < links[i][1]) return m;
+            }
+            n++; return p1;
+          });
+        }).join('\n');
+        return { text: out, applied: n };
       }
     },
 
@@ -413,7 +463,9 @@
     {
       id: 'G-1', cat: 'G', name: '추측 종결 반복', severity: 2,
       detect: function (t) {
-        var c = count(t, /(로|으로) (보인다|보여진다|판단된다|여겨진다|추정된다)/g);
+        // (?<!상태): "버튼이 눌린 상태로 보인다"는 UI 상태 서술이지 추측
+        // 종결이 아니다 (2026-10 corpus guard).
+        var c = count(t, /(?<!상태)(로|으로) (보인다|보여진다|판단된다|여겨진다|추정된다)/g);
         return c >= 3 ? c : 0;
       }
     },
@@ -572,6 +624,48 @@
     return m ? m.length : 0;
   }
 
+  // Markdown table row — "| ... | ... |". B-1/A-24/C-11 guards skip these:
+  // threat-model tables gloss every row and deprecation records live in cells.
+  function isTableRow(line) {
+    return /^[ \t]*\|/.test(line);
+  }
+
+  // A-3: 토큰이 위치 명사로 끝나는지 — "S12 줄"·"S12줄" 같은 문자적 위치
+  // 서술. 한글 접두가 바로 붙은 경우(실행·결과표 등)는 번역투 가능성을
+  // 남긴다.
+  var LOC_NOUN_RE = /(^|[^가-힣])(줄|목록|행|칸|표|페이지|화면|문서|섹션|디렉터리|폴더)$/;
+  function isLocativeNoun(tok) { return LOC_NOUN_RE.test(tok); }
+
+  // ---------------------------------------------------------------------------
+  // Protected-span masking (2026-10 production round: 65-doc wiki corpus).
+  // Backtick inline code (verified UI labels like `🤖 추천 생성 (AI)`) and
+  // double-quoted screen copy ("사실인가? …") are evidence being documented,
+  // not authoring voice — rules must neither count nor alter them. Spans are
+  // replaced with Private-Use-Area placeholders before detect/fix and
+  // restored verbatim after, so no rule can collide with the tokens.
+  // The inline-code alternative requires 1+ non-backtick chars so ``` fences
+  // (J-4's markup-leakage signal) are left untouched. Known trade-off (README
+  // 알려진 한계): with every double-quoted span protected, quote-pair density
+  // (J-2) can no longer see its own evidence and stays silent.
+  var MASK_SPAN_RE = /`[^`\n]+`|“[^“”\n]+”|"[^"\n]+"/g;
+  var MASK_OPEN = '\uE000', MASK_CLOSE = '\uE001';
+  var MASK_RESTORE_RE = /\uE000(\d+)\uE001/g;
+
+  function maskProtectedSpans(text) {
+    var spans = [];
+    var masked = text.replace(MASK_SPAN_RE, function (m) {
+      spans.push(m);
+      return MASK_OPEN + (spans.length - 1) + MASK_CLOSE;
+    });
+    return { text: masked, spans: spans };
+  }
+
+  function unmaskProtectedSpans(text, spans) {
+    return text.replace(MASK_RESTORE_RE, function (m, i) {
+      return spans[+i] != null ? spans[+i] : '';
+    });
+  }
+
   function countEmoji(text) {
     var m = text.match(EMOJI_RE);
     return m ? m.length : 0;
@@ -600,12 +694,18 @@
   }
 
   // B-1: how many gloss occurrences are redundant (2nd+ of the same term).
+  // Table-row lines are skipped entirely: comparison/threat tables legitimately
+  // gloss each row, and they neither create nor repeat glosses here.
   function repeatedGlossCount(text) {
     var seen = Object.create(null), redundant = 0;
     var re = /([가-힣]{2,})\s*\(([A-Za-z][A-Za-z0-9\s\-&.]{1,40}?)\)/g, m;
-    while ((m = re.exec(text)) !== null) {
-      if (seen[m[1]]) redundant++; else seen[m[1]] = true;
-    }
+    text.split('\n').forEach(function (line) {
+      if (isTableRow(line)) return;
+      re.lastIndex = 0;
+      while ((m = re.exec(line)) !== null) {
+        if (seen[m[1]]) redundant++; else seen[m[1]] = true;
+      }
+    });
     return redundant;
   }
 
@@ -666,10 +766,13 @@
   // ---------------------------------------------------------------------------
 
   function analyze(text) {
+    // 보호 스팬(백틱 인라인 코드·따옴표 화면 문구)을 마스킹하고 탐지 후 복원
+    // — rules never see quoted copy or UI labels (2026-10 corpus round).
+    var maskedText = maskProtectedSpans(text).text;
     var findings = [];
     RULES.forEach(function (rule) {
       var n = 0;
-      try { n = rule.detect(text) || 0; } catch (e) { /* rule bug must not break the run */ }
+      try { n = rule.detect(maskedText) || 0; } catch (e) { /* rule bug must not break the run */ }
       if (n > 0) findings.push({ id: rule.id, cat: rule.cat, name: rule.name, severity: rule.severity, count: n });
     });
     var s1 = findings.filter(function (f) { return f.severity === 1; }).reduce(function (a, f) { return a + f.count; }, 0);
@@ -678,7 +781,10 @@
   }
 
   function polish(text) {
-    var out = text, applied = [];
+    // 보호 스팬 마스킹 → 수정 규칙 실행 → 공백 정리 → 복원. 복원을 마지막에
+    // 두면 공백 정리가 스팬 내부(라벨·인용문의 띄어쓰기)를 건드릴 수 없다.
+    var mask = maskProtectedSpans(text);
+    var out = mask.text, applied = [];
     RULES.forEach(function (rule) {
       if (!rule.fix) return;
       var res;
@@ -694,6 +800,7 @@
       .replace(/([.!?])[ \t]{2,}/g, '$1 ')
       .replace(/^[\s,]+/gm, function (m) { return m.replace(/^[\s,]+/, function (x) { return x.indexOf('\n') >= 0 ? '\n' : ''; }); })
       .trim();
+    out = unmaskProtectedSpans(out, mask.spans);
     return { text: out, applied: applied };
   }
 
