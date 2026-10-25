@@ -245,6 +245,119 @@ check('human report overall clean', humanRes.total === 0, JSON.stringify(humanRe
 check('polish leaves human report untouched', HR.polish(human).text === human);
 
 // ---------------------------------------------------------------------------
+// 2026-10 production round — 65-doc wiki corpus run (2,175 findings). Zero
+// translationese gaps; ONLY the false-positive classes below surfaced, each
+// with a real sentence. Guard design lives in rules.js: per-rule guards
+// (A-3 locative nouns, G-1 상태로, B-1/A-24 table-row skip, C-11 fix context
+// guards) + protected-span masking (backticks, double quotes) at the
+// analyze/polish entry points. Both directions asserted per class: the real
+// corpus sentence must be detect-0 / fix-0, and its paired genuine tell must
+// still fire.
+console.log('# corpus false positives (2026-10 production round)');
+
+// A-3 — "S12 줄에 있어 찾기 어렵다": literal location (줄/목록/행/칸/표/
+// 페이지/화면/문서/섹션/디렉터리/폴더 + 에 있어), not the 번역투 particle.
+const a3fp1 = HR.analyze('S12 줄에 있어 찾기 어렵다');
+check('A-3: 위치명사 "줄에 있어" 오탐 0', !a3fp1.findings.some(f => f.id === 'A-3'), JSON.stringify(a3fp1.findings));
+const a3fp2 = HR.analyze('S12줄에 있어 찾기 어렵다'); // 비한글 접두 + 위치명사
+check('A-3: 비한글 접두 "S12줄에 있어" 오탐 0', !a3fp2.findings.some(f => f.id === 'A-3'), JSON.stringify(a3fp2.findings));
+const a3fp3 = HR.analyze('설정 화면에 있어 해당 항목을 찾는다');
+check('A-3: "화면에 있어" 오탐 0', !a3fp3.findings.some(f => f.id === 'A-3'), JSON.stringify(a3fp3.findings));
+check('A-3: 위치명사 문장 fix 불변', HR.polish('S12 줄에 있어 찾기 어렵다').text === 'S12 줄에 있어 찾기 어렵다');
+const a3tp = HR.analyze('우리 산업 전반에 있어 매우 중요한 전환이다');
+check('A-3: 진짜 번역투 "~에 있어" 여전히 감지', a3tp.findings.some(f => f.id === 'A-3'), JSON.stringify(a3tp.findings));
+check('A-3: 진짜 번역투 fix (~에서)', HR.polish('우리 산업 전반에 있어서 중요하다').text.includes('전반에서'));
+// 한글 접두 위치명사(실행표·결과표 등)는 번역투 가능성을 남긴다는 설계
+// 트레이드오프 — rules.js LOC_NOUN_RE의 [^가-힣] 접두 조건.
+check('A-3: 한글 접두 위치명사는 감지 유지 (트레이드오프)',
+  HR.analyze('그 실행표에 있어서 오류를 확인했다').findings.some(f => f.id === 'A-3'),
+  JSON.stringify(HR.analyze('그 실행표에 있어서 오류를 확인했다').findings));
+
+// G-1 — "버튼이 눌린 상태로 보인다": UI 상태 서술, not 추측 종결.
+const g1fp = HR.analyze('버튼이 눌린 상태로 보인다. 입력란이 잠긴 상태로 보인다. 배지가 켜진 상태로 보인다.');
+check('G-1: "상태로 보인다" UI 상태 오탐 0', !g1fp.findings.some(f => f.id === 'G-1'), JSON.stringify(g1fp.findings));
+check('G-1: 상태로 문장 polish 불변',
+  HR.polish('버튼이 눌린 상태로 보인다. 입력란이 잠긴 상태로 보인다. 배지가 켜진 상태로 보인다.').text ===
+  '버튼이 눌린 상태로 보인다. 입력란이 잠긴 상태로 보인다. 배지가 켜진 상태로 보인다.');
+const g1tp = HR.analyze('추정으로 보인다. 관측으로 보인다. 판단으로 보인다.');
+check('G-1: 추측 종결 3회 여전히 감지', g1tp.findings.some(f => f.id === 'G-1') && g1tp.findings.find(f => f.id === 'G-1').count === 3,
+  JSON.stringify(g1tp.findings));
+
+// B-1 — STRIDE threat tables: rows gloss every term; a term glossed in prose
+// AND again in a table row is legitimate, not a redundant 병기.
+const stride = [
+  '위협 모델 문서다.', '',
+  '요약에서 스푸핑(Spoofing)을 소개했다.', '',
+  '| 위협 | 설명 |', '| --- | --- |',
+  '| 스푸핑(Spoofing) | 신원 위조 |', '| 변조(Tampering) | 데이터 변경 |'
+].join('\n');
+const b1fp = HR.analyze(stride);
+check('B-1: STRIDE 표 병기 오탐 0', !b1fp.findings.some(f => f.id === 'B-1'), JSON.stringify(b1fp.findings));
+const b1fix = HR.polish(stride).text;
+check('B-1: 표 행 병기 fix 불변', b1fix.includes('| 스푸핑(Spoofing) | 신원 위조 |') && b1fix.includes('| 변조(Tampering) | 데이터 변경 |'), b1fix);
+const b1tp = '추적(Tracing)을 켠다. 이후 추적(Tracing) 결과를 본다.';
+check('B-1: 산문 병기 반복 여전히 감지', HR.analyze(b1tp).findings.some(f => f.id === 'B-1'), JSON.stringify(HR.analyze(b1tp).findings));
+check('B-1: 산문 병기 fix (두 번째 제거)', HR.polish(b1tp).text.includes('이후 추적 결과를 본다'), HR.polish(b1tp).text);
+
+// A-24 — "더 이상 지원되지 않는다" inside a table cell: factual deprecation
+// record, not rhetorical 재정의.
+const a24fp = HR.analyze('| 기능 X | 더 이상 지원되지 않는다 |\n| 기능 Y | 대체 예정 |');
+check('A-24: 표 셀 "더 이상 지원되지 않는다" 오탐 0', !a24fp.findings.some(f => f.id === 'A-24'), JSON.stringify(a24fp.findings));
+const a24tp = HR.analyze('이 기능은 더 이상 지원되지 않는다');
+check('A-24: 산문 "더 이상" 여전히 감지', a24tp.findings.some(f => f.id === 'A-24'), JSON.stringify(a24tp.findings));
+
+// C-8/K-1 — quoted on-screen copy ("사실인가? 위험은 무엇인가?", "…계속할까요?"):
+// protected-span masking keeps rules from seeing inside "..." / “...” spans.
+const c8fp = HR.analyze('첫 화면에는 "사실인가? 위험은 무엇인가?"라는 문구가, 다음 화면에는 "이대로 갈 것인가? 멈출 것인가?"라는 문구가 있다');
+check('C-8: 따옴표 화면 문구 오탐 0 (마스킹)', !c8fp.findings.some(f => f.id === 'C-8'), JSON.stringify(c8fp.findings));
+const c8quoted = '첫 화면에는 "사실인가? 위험은 무엇인가?"라는 문구가, 다음 화면에는 "이대로 갈 것인가? 멈출 것인가?"라는 문구가 있다';
+check('C-8: 따옴표 문구 polish 불변', HR.polish(c8quoted).text === c8quoted, HR.polish(c8quoted).text);
+const c8tp = HR.analyze('핵심은 도구가 아니라 사람이다. 목적은 통과가 아니라 이해다.');
+check('C-8: 산문 "A가 아니라 B" 대구 여전히 감지', c8tp.findings.some(f => f.id === 'C-8'), JSON.stringify(c8tp.findings));
+const k1fp = HR.analyze('마지막 화면에는 "정말 삭제하시겠습니까? 계속할까요?"라는 확인 문구가 뜬다');
+check('K-1: 따옴표 안 "계속할까요?" 오탐 0 (마스킹)', !k1fp.findings.some(f => f.id === 'K-1'), JSON.stringify(k1fp.findings));
+const k1fpCurly = HR.analyze('마지막 화면에는 “정말 삭제하시겠습니까? 계속할까요?”라는 확인 문구가 뜬다');
+check('K-1: 곧은/구부러진 따옴표 모두 보호', !k1fpCurly.findings.some(f => f.id === 'K-1'), JSON.stringify(k1fpCurly.findings));
+check('K-1: 따옴표 문구 polish 불변', HR.polish('마지막 화면에는 "정말 삭제하시겠습니까? 계속할까요?"라는 확인 문구가 뜬다').text ===
+  '마지막 화면에는 "정말 삭제하시겠습니까? 계속할까요?"라는 확인 문구가 뜬다');
+const k1tp = HR.analyze('더 도와드릴까요? 계속할까요?');
+check('K-1: 밖의 챗봇 잔여물 여전히 감지', k1tp.findings.some(f => f.id === 'K-1'), JSON.stringify(k1tp.findings));
+
+// Backtick UI labels (pipeline evidence: `🤖 추천 생성 (AI)`) — masked for
+// C-5 emoji and B-1 gloss counting alike.
+const btFp = HR.analyze('`🤖 추천 생성 (AI)` 버튼과 `📋 보고서 생성 (AI)` 버튼이 있다');
+check('C-5: 백틱 UI 라벨 이모지 오탐 0 (마스킹)', !btFp.findings.some(f => f.id === 'C-5'), JSON.stringify(btFp.findings));
+check('B-1: 백틱 안 병기 반복 오탐 0 (마스킹)', !btFp.findings.some(f => f.id === 'B-1'), JSON.stringify(btFp.findings));
+const c5tp = HR.analyze('🚀🚀🚀🚀🚀');
+check('C-5: 이모지 남발 5회 여전히 감지', c5tp.findings.some(f => f.id === 'C-5') && c5tp.findings.find(f => f.id === 'C-5').count === 5,
+  JSON.stringify(c5tp.findings));
+
+// C-11 fix guards — headings, table rows, and link labels keep their commas
+// even when the document crosses the 3+ threshold (detect still counts them;
+// only the fix is context-guarded).
+const c11head = '### 성능을 높이고, 비용을 줄이며, 품질을 지키고, 속도를 올리면서, 안정성을 확보한다';
+check('C-11 fix: 헤딩 줄 쉼표 보존', HR.polish(c11head).text === c11head, HR.polish(c11head).text);
+const c11row = '| 먹고, 걷고, 읽고, 자는 루틴 | 설명 |';
+check('C-11 fix: 표 행 쉼표 보존', HR.polish(c11row).text === c11row, HR.polish(c11row).text);
+const c11link = '[성능을 높이고, 비용을 줄이며, 품질을 지키고](https://example.com/a) 문서다.';
+check('C-11 fix: 링크 라벨 쉼표 보존', HR.polish(c11link).text === c11link, HR.polish(c11link).text);
+check('C-11 fix: 산문 쉼표는 여전히 제거', HR.polish('밥을 먹고, 산책을 했고, 책을 읽으며 하루를 마쳤고, 잠들었다.')
+  .text === '밥을 먹고 산책을 했고 책을 읽으며 하루를 마쳤고 잠들었다.');
+
+// Masking round-trip — spans must come back verbatim, and a genuine tell
+// outside quotes is fixed while quoted copy inside is left alone.
+const rt = '`🤖 추천 생성 (AI)` 버튼과 "계속할까요?" 문구가 있다';
+check('마스킹 복원: 백틱·따옴표 그대로 복귀', HR.polish(rt).text === rt, HR.polish(rt).text);
+const mixed = '보고서가 보여진다.\n화면에는 "계속할까요?"라는 문구가 있다.';
+const mixedAn = HR.analyze(mixed);
+check('마스킹 격리: 밖의 A-8은 감지, 안의 인용은 무시',
+  mixedAn.findings.some(f => f.id === 'A-8') && !mixedAn.findings.some(f => f.id === 'K-1'),
+  JSON.stringify(mixedAn.findings));
+const mixedOut = HR.polish(mixed).text;
+check('마스킹 격리: 밖은 고치고 인용은 보존', mixedOut.includes('보고서가 보인다.') && mixedOut.includes('"계속할까요?"라는 문구가 있다.'),
+  mixedOut);
+
+// ---------------------------------------------------------------------------
 // References registry (references.json) — keeps the source mapping from
 // rotting when rules get renamed/removed. Network drift checks live in
 // scripts/ref-check.mjs; this only validates the local mapping.
