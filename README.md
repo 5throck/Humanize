@@ -136,8 +136,9 @@ LLM_MODEL=gpt-4.1-mini          # ③ 모델
 | `POST /api/analyze` | `{text}` | AI 티 패턴 감지 결과(`findings`, S1/S2 합계) |
 | `POST /api/polish` | `{text}` | 윤문문 + `applied`·before/after·`changeRate`·`grade` |
 | `POST /api/prompt` | `{genre?}` (`auto/column/report/blog/formal`) | LLM 모드 시스템 프롬프트 |
-| `POST /api/chunk` | `{text, target?, max?}` | 장문 청킹 계획(아래 청킹 절 참고) |
+| `POST /api/chunk` | `{text, target?, max?, genre?}` | 장문 청킹 계획 + 청크별 `[어휘 점검]` hint(아래 청킹 절 참고) |
 | `POST /api/merge` | `{original, rewritten[], target?, max?}` | 병합문 + 유실/증식 경고 + 재검증 통계 |
+| `POST /api/lexicon` | `{text, genre?}` | 어휘 사전(115개) 히트 목록 + `[어휘 점검]` 블록 |
 
 ```bash
 curl -s -X POST localhost:8765/api/polish \
@@ -156,6 +157,14 @@ curl -s -X POST localhost:8765/api/polish \
 - **병합·검증**: 원문 청크의 앞뒤 공백을 복원해 붙이고(원문을 그대로 재투입하면 재조립 = 원문), 청크별 글자 수 대사로 원문 절반 이하는 "유실 의심", 2배 초과는 "증식 의심" 경고를 냅니다.
 
 upstream 단서에 따라 청크를 작게 만드는 것(구형 웹앱의 1,800자 등)은 의도적으로 하지 않습니다 — 큰 모델은 대구·리듬 같은 문단 횡단 신호를 잡아야 하므로 청크가 커야 합니다.
+
+## 어휘 점검 (lexical layer)
+
+upstream v2.4.x의 어휘 레이어(`lexical_layer.py` + 독자 평가 기반 `lexicon.json` 115개)를 JS로 포팅했습니다. AI 글에는 문장 구조와 별개로 독자가 읽다가 걸리는 낱말이 있습니다 — "~의 렌즈로 보면", "성공을 달성한다", "논의에 결을 더한다" 같은 것.
+
+- **일괄 치환하지 않습니다** — 같은 낱말도 장르·문맥에 따라 두어야 할 때가 있고, 고정 대체어는 그 자체가 새 상투어가 됩니다. 대신 원문에서 **발견된 항목만** `[어휘 점검]` 블록(항목별 바꿀 때/둘 때/방식, [우선]/[조건부] 등급, 최대 15개)으로 만들어 LLM 입력에 붙이고, 실행자가 문맥으로 판단합니다.
+- 직접 인용 안의 낱말은 세지 않고(인용 원형 보존), 각 항목의 정당 용법 제외 정규식(±12자 창)과 장르 스킵 목록을 따릅니다. LLM 모드(단일·청킹 모두)에서 자동 적용됩니다.
+- 검증: 사전의 115개 항목이 갖고 있는 내장 픽스처 1,011건을 JS 엔진으로 전수 통과합니다(`bun test.mjs`).
 
 ## 프롬프트 개선 루프 — 오프라인 평가 하네스
 
@@ -190,10 +199,11 @@ claude mcp add humanize -- bun mcp-server.mjs
 | `humanize_analyze` | AI 티 패턴 감지(47개 규칙) |
 | `humanize_polish` | 규칙 기반 윤문 + 변경률·등급 |
 | `humanize_prompt` | 장르별 시스템 프롬프트 반환 |
-| `humanize_chunk` | 장문 무손실 분할(청크별 컨텍스트 헤더 포함) |
+| `humanize_chunk` | 장문 무손실 분할(청크별 컨텍스트 헤더·어휘 힌트 포함) |
 | `humanize_merge` | 청크별 윤문 결과 병합·검증(유실/증식 경고) |
+| `humanize_lexicon` | 어휘 사전 히트 + `[어휘 점검]` 힌트 블록 |
 
-에이전트 활용 패턴: `humanize_prompt`로 시스템 프롬프트를 받고, 길면 `humanize_chunk`로 나눠 각 청크를 자기 모델로 윤문한 뒤 `humanize_merge`로 합치고 경고를 확인합니다.
+에이전트 활용 패턴: `humanize_prompt`로 시스템 프롬프트를 받고, 길면 `humanize_chunk`로 나눠 각 청크(헤더+어휘 힌트 포함)를 자기 모델로 윤문한 뒤 `humanize_merge`로 합치고 경고를 확인합니다. 짧은 텍스트는 `humanize_lexicon`의 힌트를 입력 앞에 붙여 윤문하면 upstream과 동일한 어휘 레이어가 적용됩니다.
 
 ## 개발
 
@@ -219,8 +229,10 @@ style.css         스타일 (Pretendard, 반응형 2패널)
 rules.js          규칙 엔진 — quick-rules 포팅(탐지/수정/변경률/등급), 규칙별 출처(src) 표기
 prompt.js         LLM 모드 시스템 프롬프트 — monolith 철칙 + 룰북
 chunking.js       장문 청킹 — im-not-ai 분할/병합 파이프라인 JS 포팅 (무손실 self-check 포함)
-app.js            UI 로직, LLM 클라이언트(청킹 경로 포함), 통계 렌더링
-mcp-server.mjs    MCP stdio 서버 — 도구 5개 (제로 디펜던시 JSON-RPC)
+lexicon-data.js   어휘 사전 — im-not-ai lexicon.json verbatim (115개, 독자 평가 기반)
+lexicon.js        어휘 레이어 — [어휘 점검] 힌트 블록 생성 (일괄 치환 금지)
+app.js            UI 로직, LLM 클라이언트(청킹·어휘 경로 포함), 통계 렌더링
+mcp-server.mjs    MCP stdio 서버 — 도구 6개 (제로 디펜던시 JSON-RPC)
 lib/engine.mjs    rules/prompt/chunking 로더 — serve.ts와 mcp-server.mjs 공용
 lib/eval-core.mjs 평가 순수 로직 — 픽스처 검증·점수·런 비교·few-shot 후보 분류
 eval/corpus.json  평가 코퍼스 — AI 티 원문 8편 + 편별 기대 신호(expect 태그)

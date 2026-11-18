@@ -10,7 +10,7 @@
  *   native protocol (Messages API / generateContent) and the response back, so the
  *   browser always speaks OpenAI chat/completions.
  * - POST /api/*               -> deterministic rules engine over HTTP (analyze,
- *   polish, prompt, chunk, merge) — same payloads as the MCP tools in
+ *   polish, prompt, chunk, merge, lexicon) — same payloads as the MCP tools in
  *   mcp-server.mjs; both reuse the browser files via lib/engine.mjs.
  *
  * Provider selection (co-newbiz llm.ts convention, preset mode):
@@ -527,7 +527,7 @@ async function llmPost(req: http.IncomingMessage, res: http.ServerResponse): Pro
 // ---------------------------------------------------------------------------
 
 const ENGINE = loadEngine();
-const { Rules, Prompt, Chunking } = ENGINE;
+const { Rules, Prompt, Chunking, Lexicon } = ENGINE;
 
 // Mirrors app.js MAX_CHARS — the UI cannot send more either.
 const MAX_API_CHARS = 30_000;
@@ -544,7 +544,6 @@ interface ApiBody {
   target?: unknown;
   max?: unknown;
 }
-
 async function readJsonBody(req: http.IncomingMessage): Promise<ApiBody> {
   let body: ApiBody;
   try {
@@ -632,7 +631,25 @@ async function apiPost(req: http.IncomingMessage, res: http.ServerResponse, path
       case "/api/chunk": {
         const text = requireText(body.text, MAX_CHUNK_API_CHARS);
         const plan = Chunking.plan(text, chunkOpts(body));
-        sendJson(res, 200, plan);
+        // Mirror upstream's combined chunk input files: each body chunk
+        // carries its own [어휘 점검] hint block (computed per chunk).
+        const genre = typeof body.genre === "string" ? body.genre : undefined;
+        const chunks = plan.chunks.map((c) => ({
+          ...c,
+          hint: c.passthrough ? null : Lexicon.hintBlockFor(c.text, genre),
+        }));
+        sendJson(res, 200, { ...plan, chunks });
+        return;
+      }
+      case "/api/lexicon": {
+        const text = requireText(body.text);
+        const genre = typeof body.genre === "string" ? body.genre : undefined;
+        const hits = Lexicon.findHits(text, genre);
+        sendJson(res, 200, {
+          hits,
+          block: Lexicon.hintBlock(hits),
+          hint_block: Lexicon.hintBlockFor(text, genre),
+        });
         return;
       }
       case "/api/merge": {
@@ -658,7 +675,7 @@ async function apiPost(req: http.IncomingMessage, res: http.ServerResponse, path
         return;
       }
       default:
-        sendError(res, 404, `알 수 없는 API 경로: ${pathName} (사용 가능: /api/analyze /api/polish /api/prompt /api/chunk /api/merge)`);
+        sendError(res, 404, `알 수 없는 API 경로: ${pathName} (사용 가능: /api/analyze /api/polish /api/prompt /api/chunk /api/merge /api/lexicon)`);
     }
   } catch (e) {
     // ChunkingError and validation failures are caller errors → 400.
@@ -823,7 +840,7 @@ server.on("error", (e: { code?: string; message?: string }) => {
 
 server.listen(PORT, HOST, () => {
   console.log(
-    `Humanize: http://localhost:${PORT}  (API: /api/analyze ·polish ·prompt ·chunk ·merge | CORS proxy: /proxy/<host>/<path>)`,
+    `Humanize: http://localhost:${PORT}  (API: /api/analyze ·polish ·prompt ·chunk ·merge ·lexicon | CORS proxy: /proxy/<host>/<path>)`,
   );
   const provs = configuredProviders();
   let selDesc: string;

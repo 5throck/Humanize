@@ -57,13 +57,25 @@ const TOOLS = [
   },
   {
     name: 'humanize_chunk',
-    description: '긴 문서를 손실 없는 청크로 나눈다(15,000자 이상 권장, 목표 7,000자). 각 청크에 LLM 앞에 붙일 [청크 컨텍스트] 헤더가 포함된다. passthrough 청크(말미 각주 블록)는 재작성 없이 humanize_merge에 그대로 두면 된다.',
+    description: '긴 문서를 손실 없는 청크로 나눈다(15,000자 이상 권장, 목표 7,000자). 각 청크에 LLM 앞에 붙일 [청크 컨텍스트] 헤더와 [어휘 점검] 힌트 블록이 포함된다. passthrough 청크(말미 각주 블록)는 재작성 없이 humanize_merge에 그대로 두면 된다.',
     inputSchema: {
       type: 'object',
       properties: {
         text: { type: 'string', description: '분할할 한국어 문서 (최대 200,000자)' },
         target: { type: 'number', description: '청크 목표 문자 수 (기본 7000, 하한 2000 — 작게 만들면 문단 횡단 신호를 잃는다)' },
         max: { type: 'number', description: '청크 상한 문자 수 (기본 9000)' },
+      },
+      required: ['text'],
+    },
+  },
+  {
+    name: 'humanize_lexicon',
+    description: '독자가 어색하게 느끼는 낱말(어휘 사전 115개)을 원문에서 찾아 [어휘 점검] 힌트 블록을 돌려준다. 일괄 치환 금지 — 항목마다 바꿀 때/둘 때/방식을 보고 문맥 판단한다. 이 도구의 힌트를 윤문 입력 앞에 붙이면 upstream과 동일한 어휘 레이어가 적용된다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: '점검할 한국어 텍스트 (최대 30,000자)' },
+        genre: { type: 'string', enum: ['report', 'paper', 'abstract'], description: '장르 키 — report/paper/abstract만 사전 장르에 매핑되고 나머지는 일반' },
       },
       required: ['text'],
     },
@@ -136,7 +148,25 @@ const TOOL_HANDLERS = {
   },
   humanize_chunk(args) {
     const text = requireText(args.text, MAX_CHUNK_CHARS);
-    return engine.Chunking.plan(text, chunkOpts(args));
+    const plan = engine.Chunking.plan(text, chunkOpts(args));
+    // Mirror upstream's combined chunk input files: each body chunk carries
+    // its own [어휘 점검] hint block (computed per chunk).
+    const genre = typeof args.genre === 'string' ? args.genre : undefined;
+    const chunks = plan.chunks.map((c) => ({
+      ...c,
+      hint: c.passthrough ? null : engine.Lexicon.hintBlockFor(c.text, genre),
+    }));
+    return { ...plan, chunks };
+  },
+  humanize_lexicon(args) {
+    const text = requireText(args.text, MAX_CHARS);
+    const genre = typeof args.genre === 'string' ? args.genre : undefined;
+    const hits = engine.Lexicon.findHits(text, genre);
+    return {
+      hits,
+      block: engine.Lexicon.hintBlock(hits),
+      hint_block: engine.Lexicon.hintBlockFor(text, genre),
+    };
   },
   humanize_merge(args) {
     const original = requireText(args.original, MAX_CHUNK_CHARS, 'original');

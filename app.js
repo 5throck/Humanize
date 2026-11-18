@@ -441,6 +441,15 @@
     return out;
   }
 
+  // Lexical hint block for the given text — upstream prepare_monolith_input
+  // appends the [어휘 점검] block (found entries only, genre-aware) to every
+  // LLM input, single-call and per-chunk alike. Empty when nothing found or
+  // the layer is unavailable (graceful degrade).
+  function lexHint(text) {
+    if (!window.HumanizeLexicon) return '';
+    return HumanizeLexicon.hintBlockFor(text, els.genre.value);
+  }
+
   async function polishLlm(text) {
     var cfg = state.llm;
     if (!cfg.apiKey && !envKeyConfigured()) {
@@ -462,7 +471,10 @@
       }
     }
 
-    var out = await llmChatOnce(text, chat, text.length);
+    // [어휘 점검] block prepended to the user message (upstream order:
+    // hint blocks live in the combined input before [원문 시작]).
+    var lex = lexHint(text);
+    var out = await llmChatOnce(lex ? lex + '\n\n' + text : text, chat, text.length);
     var before = HumanizeRules.analyze(text);
     var after = HumanizeRules.analyze(out);
     var rate = HumanizeRules.changeRate(text, out);
@@ -487,8 +499,11 @@
         var my = next++;
         var c = bodyChunks[my];
         // The [청크 컨텍스트] header keeps the model from inventing
-        // 서두/결말 or merging the heading into body sentences.
-        results[my] = await llmChatOnce(c.header + '\n' + c.text, chat, c.text.length);
+        // 서두/결말 or merging the heading into body sentences; the
+        // [어휘 점검] block lists this chunk's lexicon hits (per-chunk,
+        // like upstream's combined chunk input files).
+        var lex = lexHint(c.text);
+        results[my] = await llmChatOnce(c.header + '\n' + (lex ? lex + '\n\n' : '') + c.text, chat, c.text.length);
         done++;
         setProgress('청크 윤문 중 ' + done + '/' + bodyChunks.length + '…');
       }

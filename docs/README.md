@@ -31,3 +31,4 @@
 | 문서 | 다룬 회차 |
 |------|----------|
 | [2026-10-22-chunking-api-mcp-design](designs/2026-10-22-chunking-api-mcp-design.md) | 장문 청킹 포팅 + `/api/*` 5종 + MCP stdio 서버 (PR #8) |
+| [2026-11-19-lexicon-layer-design](designs/2026-11-19-lexicon-layer-design.md) | upstream v2.4.x 어휘 레이어 hints 경로 포팅 — lexicon.js·`/api/lexicon`·`humanize_lexicon` |

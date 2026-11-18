@@ -8,10 +8,11 @@ const HR = sandbox.window.HumanizeRules;
 
 // Chunking + MCP share the same engine loader used by serve.ts.
 const sandbox2 = { window: {} };
-for (const f of ['rules.js', 'prompt.js', 'chunking.js']) {
+for (const f of ['rules.js', 'prompt.js', 'chunking.js', 'lexicon-data.js', 'lexicon.js']) {
   new Function('window', readFileSync(new URL(`./${f}`, import.meta.url), 'utf8'))(sandbox2.window);
 }
 const HC = sandbox2.window.HumanizeChunking;
+const LX = sandbox2.window.HumanizeLexicon;
 const { handleMessage } = await import('./mcp-server.mjs');
 
 let failures = 0;
@@ -493,8 +494,8 @@ check('mcp: initialize echoes protocolVersion + serverInfo', init?.result?.proto
 check('mcp: notification stays silent', handleMessage({ jsonrpc: '2.0', method: 'notifications/initialized' }) === null);
 check('mcp: ping answers', handleMessage({ jsonrpc: '2.0', id: 2, method: 'ping' })?.result != null);
 const tools = handleMessage({ jsonrpc: '2.0', id: 3, method: 'tools/list' });
-check('mcp: tools/list exposes 5 tools', tools?.result?.tools?.length === 5 &&
-  ['humanize_analyze', 'humanize_polish', 'humanize_prompt', 'humanize_chunk', 'humanize_merge']
+check('mcp: tools/list exposes 6 tools', tools?.result?.tools?.length === 6 &&
+  ['humanize_analyze', 'humanize_polish', 'humanize_prompt', 'humanize_chunk', 'humanize_merge', 'humanize_lexicon']
     .every(n => tools.result.tools.some(t => t.name === n)), JSON.stringify(tools?.result?.tools?.map(t => t.name)));
 const call = (id, name, args) => handleMessage({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } });
 const mcpAnalyze = call(4, 'humanize_analyze', { text: sample });
@@ -556,6 +557,64 @@ const diff = EC.diffRuns(offlineRecs, offlineRecs);
 check('eval: diff of identical runs is flat',
   diff.fixtures.every(f => f.grade.split('→')[0] === f.grade.split('→')[1] && f.s1Residual[0] === f.s1Residual[1]) &&
   diff.base.s1Residual === diff.candidate.s1Residual);
+
+// ---------------------------------------------------------------------------
+// Lexical layer (lexicon.js + lexicon-data.js) — JS port of im-not-ai
+// lexical_layer.py hints path. Validation = every entry's built-in fixtures
+// (test_detect_pos/neg are arrays, test_positive/negative are plain strings;
+// POS detect fixtures of entries whose skip_genres cover ALL genres are
+// unreachable in hints mode and covered by their narrow-regex fixtures).
+console.log('# lexicon: upstream fixture sweep + hint block');
+const LX_DATA = sandbox2.window.HumanizeLexiconData;
+const LEX_GENRES = [null, 'report', 'paper']; // → 일반 / 보고서 / 논문
+let lexChecked = 0, lexBad = 0;
+for (const e of LX_DATA.entries) {
+  const skip = e.skip_genres || [];
+  const allSkipped = ['보고서', '논문', '일반'].every(g => skip.includes(g));
+  for (const s of e.test_detect_pos || []) {
+    lexChecked++;
+    if (allSkipped) continue;
+    const ok = LEX_GENRES.filter(g => !skip.includes(LX.genreKey(g)))
+      .some(g => LX.findHits(s, g).some(h => h.id === e.id));
+    if (!ok) { lexBad++; console.error(`  FAIL lex detect-pos ${e.id}: ${JSON.stringify(s.slice(0, 60))}`); }
+  }
+  for (const s of e.test_detect_neg || []) {
+    lexChecked++;
+    const badG = LEX_GENRES.filter(g => !skip.includes(LX.genreKey(g)))
+      .filter(g => LX.findHits(s, g).some(h => h.id === e.id));
+    if (badG.length) { lexBad++; console.error(`  FAIL lex detect-neg ${e.id}: ${JSON.stringify(s.slice(0, 60))}`); }
+  }
+  if (e.test_positive) {
+    lexChecked++;
+    if (!new RegExp(e.regex).test(e.test_positive)) lexBad++;
+  }
+  if (e.test_negative) {
+    lexChecked++;
+    if (new RegExp(e.regex).test(e.test_negative)) lexBad++;
+  }
+}
+check(`lexicon: all ${LX_DATA.entries.length} entries' built-in fixtures pass (${lexChecked} fixtures)`, lexBad === 0, `실패 ${lexBad}건`);
+
+const lexHit = LX.findHits('이 교육은 직원의 잠재력을 잠금 해제한다.', null);
+check('lexicon: detects 잠금 해제 (AST-01, change tier)', lexHit.some(h => h.id === 'AST-01' && h.tier === 'change'), JSON.stringify(lexHit));
+const lexBlock = LX.hintBlock(lexHit);
+check('lexicon: hint block has 어휘 점검 markers + guidance',
+  lexBlock.includes('[어휘 점검]') && lexBlock.includes('[우선]') && lexBlock.includes('바꿀 때:') && lexBlock.includes('[어휘 점검 끝]'));
+check('lexicon: no hits → empty block (graceful)', LX.hintBlockFor('오늘 날씨가 맑아서 산책을 했다.', null) === '');
+check('lexicon: direct quote excluded from hints',
+  !LX.findHits('이 글은 "잠금 해제한다"라는 예문을 인용한다.', null).some(h => h.id === 'AST-01'),
+  JSON.stringify(LX.findHits('이 글은 "잠금 해제한다"라는 예문을 인용한다.', null).map(h => h.id)));
+check('lexicon: legit usage excluded by regex_exclude window',
+  !LX.findHits('스마트폰 화면을 잠금 해제한다.', null).some(h => h.id === 'AST-01'));
+check('lexicon: skip_genres honored (지형 skipped in every genre)',
+  ['보고서', '논문', '일반'].every(g => !LX.findHits('생성형 AI가 산업의 지형을 바꾸고 있다.', g === '일반' ? null : g).some(h => h.id === 'X-01')));
+const manyHitsBlock = LX.hintBlock(Array.from({ length: 20 }, (_, i) => ({
+  id: 'X-' + i, headword: '가짜 표제어 ' + i, tier: 'conditional', count: 1,
+  examples: ['예문'], change_when: '문맥 판단', keep_when: '정당 용법', how: '교체'
+})));
+check('lexicon: hint block capped at MAX_HINTS + 생략 안내',
+  (manyHitsBlock.match(/^- \[/gm) || []).length === LX.constants.MAX_HINTS && manyHitsBlock.includes('개 항목은 생략'));
+check('lexicon: genre key mapping (report → 보고서)', LX.genreKey('report') === '보고서' && LX.genreKey('paper') === '논문' && LX.genreKey('blog') === '일반');
 
 // ---------------------------------------------------------------------------
 
