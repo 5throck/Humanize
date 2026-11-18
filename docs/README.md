@@ -26,13 +26,14 @@
 | [ADR-0005](adr/0005-mit-license-retention.md) | 라이선스 MIT 유지 (workspace AGPL 정책 검토 후) | Accepted |
 | [ADR-0006](adr/0006-eval-harness-no-ml-framework.md) | 평가 하네스 — ML 프레임워크 없이 순수 Bun으로 | Accepted |
 | [ADR-0007](adr/0007-directory-structure.md) | 디렉터 구조 — engine/ 분리, scripts/는 ops 전용 | Accepted |
-| [ADR-0006](adr/0006-eval-harness-no-ml-framework.md) | 오프라인 평가 하네스 — 프롬프트 개선 루프는 순수 Bun으로, ML 최적화 프레임워크는 미도입 | Accepted |
 
 ## 설계 문서 목록
 
 | 문서 | 다룬 회차 |
 |------|----------|
 | [2026-10-22-chunking-api-mcp-design](designs/2026-10-22-chunking-api-mcp-design.md) | 장문 청킹 포팅 + `/api/*` 5종 + MCP stdio 서버 (PR #8) |
+| [2026-10-25-eval-harness-design](designs/2026-10-25-eval-harness-design.md) | 오프라인 평가 하네스 — 규칙 엔진 메트릭 런·프롬프트 A/B·few-shot 후보 (PR #16) |
+| [2026-10-25-corpus-fp-guards-design](designs/2026-10-25-corpus-fp-guards-design.md) | 실문서 코퍼스 오탐 가드 — 보호 스팬 마스킹·위치명사·표행 제외 (PR #17) |
 | [2026-11-19-lexicon-layer-design](designs/2026-11-19-lexicon-layer-design.md) | upstream v2.4.x 어휘 레이어 hints 경로 포팅 — lexicon.js·`/api/lexicon`·`humanize_lexicon` |
 | [2026-11-19-source-scan-fidelity-design](designs/2026-11-19-source-scan-fidelity-design.md) | 신규 출처 스캔(5건 등록) + slop-rewrite fidelity 검사기 포팅 — fidelity.js·`/api/fidelity`·`humanize_fidelity` |
 | [2026-11-19-translate-mode-design](designs/2026-11-19-translate-mode-design.md) | 번역 모드(EN→KO 자연화) — K-Humanizer 계약 포팅, 작업 토글·mode=translate |
