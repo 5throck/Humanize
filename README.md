@@ -137,8 +137,9 @@ LLM_MODEL=gpt-4.1-mini          # ③ 모델
 | `POST /api/polish` | `{text}` | 윤문문 + `applied`·before/after·`changeRate`·`grade` |
 | `POST /api/prompt` | `{genre?}` (`auto/column/report/blog/formal`) | LLM 모드 시스템 프롬프트 |
 | `POST /api/chunk` | `{text, target?, max?, genre?}` | 장문 청킹 계획 + 청크별 `[어휘 점검]` hint(아래 청킹 절 참고) |
-| `POST /api/merge` | `{original, rewritten[], target?, max?}` | 병합문 + 유실/증식 경고 + 재검증 통계 |
+| `POST /api/merge` | `{original, rewritten[], target?, max?}` | 병합문 + 유실/증식 경고 + **fidelity**(지어낸/사라진 수치·인용) + 재검증 통계 |
 | `POST /api/lexicon` | `{text, genre?}` | 어휘 사전(115개) 히트 목록 + `[어휘 점검]` 블록 |
+| `POST /api/fidelity` | `{original, polished}` | 의미 보존 검사 — 지어낸 것(결과에만 있는 수치·인용·자리표시자, 단위 변경)과 사라진 것(수치·인용·부정 감소) 보고 |
 
 ```bash
 curl -s -X POST localhost:8765/api/polish \
@@ -165,6 +166,15 @@ upstream v2.4.x의 어휘 레이어(`lexical_layer.py` + 독자 평가 기반 `l
 - **일괄 치환하지 않습니다** — 같은 낱말도 장르·문맥에 따라 두어야 할 때가 있고, 고정 대체어는 그 자체가 새 상투어가 됩니다. 대신 원문에서 **발견된 항목만** `[어휘 점검]` 블록(항목별 바꿀 때/둘 때/방식, [우선]/[조건부] 등급, 최대 15개)으로 만들어 LLM 입력에 붙이고, 실행자가 문맥으로 판단합니다.
 - 직접 인용 안의 낱말은 세지 않고(인용 원형 보존), 각 항목의 정당 용법 제외 정규식(±12자 창)과 장르 스킵 목록을 따릅니다. LLM 모드(단일·청킹 모두)에서 자동 적용됩니다.
 - 검증: 사전의 115개 항목이 갖고 있는 내장 픽스처 1,011건을 JS 엔진으로 전수 통과합니다(`bun test.mjs`).
+
+## 의미 보존 검사 (fidelity)
+
+윤문 결과가 원문의 사실을 지켰는지를 코드로 검증합니다([slop-rewrite](https://github.com/byungjunjang/slop-rewrite)의 `check_fidelity.py` 코어를 JS로 포팅). 문장을 짝짓지 않는 **문서 단위 다중집합 비교**로:
+
+- **지어낸 것(실패급)**: 결과에만 있는 수치·인용·자리표시자(`[출처 필요]` 등), 같은 값 다른 단위(12% → 12%p). 배수 단위는 정규화해 비교합니다(3천 원 ↔ 3,000원은 정상).
+- **사라진 것(보고 전용)**: 원문에만 있는 수치·인용, 부정 감소(없다→미비 같은 계열 이동 포함), 자리표시자·링크·각주. 자연스러움을 위해 문장을 지울 수 있으므로 실패가 아니라 확인 대상입니다.
+- 뜻이 뒤집혔는지의 최종 판정은 실행자 몫입니다(검사기는 표지 개수만 봅니다).
+- 웹 LLM 모드 결과 메타에 "⚠ 의미 보존 확인 필요" 경고로 표시되고, `/api/merge`·MCP `humanize_merge` 응답에 `fidelity` 필드로 실립니다. 단독 호출은 `/api/fidelity`·`humanize_fidelity`.
 
 ## 프롬프트 개선 루프 — 오프라인 평가 하네스
 
@@ -200,8 +210,9 @@ claude mcp add humanize -- bun mcp-server.mjs
 | `humanize_polish` | 규칙 기반 윤문 + 변경률·등급 |
 | `humanize_prompt` | 장르별 시스템 프롬프트 반환 |
 | `humanize_chunk` | 장문 무손실 분할(청크별 컨텍스트 헤더·어휘 힌트 포함) |
-| `humanize_merge` | 청크별 윤문 결과 병합·검증(유실/증식 경고) |
+| `humanize_merge` | 청크별 윤문 결과 병합·검증(유실/증식 경고 + fidelity) |
 | `humanize_lexicon` | 어휘 사전 히트 + `[어휘 점검]` 힌트 블록 |
+| `humanize_fidelity` | 원문↔결과 의미 보존 검사(지어낸/사라진 수치·인용·부정) |
 
 에이전트 활용 패턴: `humanize_prompt`로 시스템 프롬프트를 받고, 길면 `humanize_chunk`로 나눠 각 청크(헤더+어휘 힌트 포함)를 자기 모델로 윤문한 뒤 `humanize_merge`로 합치고 경고를 확인합니다. 짧은 텍스트는 `humanize_lexicon`의 힌트를 입력 앞에 붙여 윤문하면 upstream과 동일한 어휘 레이어가 적용됩니다.
 
@@ -231,7 +242,8 @@ prompt.js         LLM 모드 시스템 프롬프트 — monolith 철칙 + 룰북
 chunking.js       장문 청킹 — im-not-ai 분할/병합 파이프라인 JS 포팅 (무손실 self-check 포함)
 lexicon-data.js   어휘 사전 — im-not-ai lexicon.json verbatim (115개, 독자 평가 기반)
 lexicon.js        어휘 레이어 — [어휘 점검] 힌트 블록 생성 (일괄 치환 금지)
-app.js            UI 로직, LLM 클라이언트(청킹·어휘 경로 포함), 통계 렌더링
+fidelity.js       의미 보존 검사 — slop-rewrite check_fidelity 코어 포팅 (지어낸/사라진 것)
+app.js            UI 로직, LLM 클라이언트(청킹·어휘·fidelity 경로 포함), 통계 렌더링
 mcp-server.mjs    MCP stdio 서버 — 도구 6개 (제로 디펜던시 JSON-RPC)
 lib/engine.mjs    rules/prompt/chunking 로더 — serve.ts와 mcp-server.mjs 공용
 lib/eval-core.mjs 평가 순수 로직 — 픽스처 검증·점수·런 비교·few-shot 후보 분류
