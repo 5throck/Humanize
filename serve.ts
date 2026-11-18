@@ -625,7 +625,15 @@ async function apiPost(req: http.IncomingMessage, res: http.ServerResponse, path
         if (typeof genre !== "string" || !GENRES.includes(genre)) {
           throw new ApiError(400, `"genre"는 ${GENRES.join("|")} 중 하나여야 합니다.`);
         }
-        sendJson(res, 200, { genre, system: Prompt.system(genre) });
+        const mode = body.mode === undefined || body.mode === null ? "polish" : body.mode;
+        if (mode !== "polish" && mode !== "translate") {
+          throw new ApiError(400, '"mode"는 polish|translate 중 하나여야 합니다.');
+        }
+        sendJson(res, 200, {
+          mode,
+          genre,
+          system: mode === "translate" ? Prompt.translate(genre) : Prompt.system(genre),
+        });
         return;
       }
       case "/api/chunk": {

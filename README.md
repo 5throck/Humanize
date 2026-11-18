@@ -89,6 +89,7 @@ LLM_MODEL=gpt-4.1-mini          # ③ 모델
 |------|------|---------|
 | **규칙 기반 (오프라인)** | quick-rules 중 문맥 없이 안전하게 적용 가능한 47개 패턴(이중 피동, "~에 있어서", 결산 어휘 남발, 분열문, 연결어미 쉼표, 챗봇 잔여물, 마크업 잔재, 평서 종결 단조, 접속사 문단 밀집 등)을 정규식·통계 엔진으로 탐지·수정 | 없음 |
 | **LLM** | 원본 `humanize-monolith`의 철칙 9항 + 전체 룰북을 시스템 프롬프트로 실행. Z.ai/GLM·OpenAI·Anthropic·Gemini·DeepSeek 지원. 15,000자 이상 원문은 장문 청킹으로 자동 분할 처리(아래 청킹 절) | `.env` 또는 설정창의 키 |
+| **LLM · 번역 (EN→KO)** | 작업 토글에서 「번역 (EN→KO)」 선택 — 영어 원문을 한국 독자 기준 자연 한국어로 번역·현지화(K-Humanizer 계약). 규칙 모드에서 선택하면 자동으로 LLM 모드로 전환되고 예시 버튼이 영어 샘플로 바뀝니다 | `.env` 또는 설정창의 키 |
 
 - 규칙 기반 모드는 결정론적이지만 **탐지 전용 패턴**(구조 재편·리듬 조정·완곡 변주 등 문맥이 필요한 것)은 고치지 못하고 플래그만 표시합니다. 등급 A/B를 목표로 하면 LLM 모드를 사용하세요.
 - 두 모드 모두 결과를 로컬 엔진으로 재검증해 **변경률 / AI 티 신호 before→after / S1·S2 세부 / 등급(LLM 모드)** 배지를 표시합니다.
@@ -135,7 +136,7 @@ LLM_MODEL=gpt-4.1-mini          # ③ 모델
 |------------|------|------|
 | `POST /api/analyze` | `{text}` | AI 티 패턴 감지 결과(`findings`, S1/S2 합계) |
 | `POST /api/polish` | `{text}` | 윤문문 + `applied`·before/after·`changeRate`·`grade` |
-| `POST /api/prompt` | `{genre?}` (`auto/column/report/blog/formal`) | LLM 모드 시스템 프롬프트 |
+| `POST /api/prompt` | `{genre?, mode?}` — mode `polish`(기본)/`translate` (`auto/column/report/blog/formal`) | 시스템 프롬프트(윤문 또는 EN→KO 번역·현지화) |
 | `POST /api/chunk` | `{text, target?, max?, genre?}` | 장문 청킹 계획 + 청크별 `[어휘 점검]` hint(아래 청킹 절 참고) |
 | `POST /api/merge` | `{original, rewritten[], target?, max?}` | 병합문 + 유실/증식 경고 + **fidelity**(지어낸/사라진 수치·인용) + 재검증 통계 |
 | `POST /api/lexicon` | `{text, genre?}` | 어휘 사전(115개) 히트 목록 + `[어휘 점검]` 블록 |
@@ -208,13 +209,13 @@ claude mcp add humanize -- bun mcp-server.mjs
 |------|------|
 | `humanize_analyze` | AI 티 패턴 감지(47개 규칙) |
 | `humanize_polish` | 규칙 기반 윤문 + 변경률·등급 |
-| `humanize_prompt` | 장르별 시스템 프롬프트 반환 |
+| `humanize_prompt` | 시스템 프롬프트 반환 — mode `polish`(윤문)/`translate`(EN→KO 번역·현지화) |
 | `humanize_chunk` | 장문 무손실 분할(청크별 컨텍스트 헤더·어휘 힌트 포함) |
 | `humanize_merge` | 청크별 윤문 결과 병합·검증(유실/증식 경고 + fidelity) |
 | `humanize_lexicon` | 어휘 사전 히트 + `[어휘 점검]` 힌트 블록 |
 | `humanize_fidelity` | 원문↔결과 의미 보존 검사(지어낸/사라진 수치·인용·부정) |
 
-에이전트 활용 패턴: `humanize_prompt`로 시스템 프롬프트를 받고, 길면 `humanize_chunk`로 나눠 각 청크(헤더+어휘 힌트 포함)를 자기 모델로 윤문한 뒤 `humanize_merge`로 합치고 경고를 확인합니다. 짧은 텍스트는 `humanize_lexicon`의 힌트를 입력 앞에 붙여 윤문하면 upstream과 동일한 어휘 레이어가 적용됩니다.
+에이전트 활용 패턴: `humanize_prompt`로 시스템 프롬프트를 받고(mode=translate이면 영어 원문을 자연 한국어로 번역), 길면 `humanize_chunk`로 나눠 각 청크(헤더+어휘 힌트 포함)를 자기 모델로 윤문한 뒤 `humanize_merge`로 합치고 경고를 확인합니다. 짧은 텍스트는 `humanize_lexicon`의 힌트를 입력 앞에 붙여 윤문하면 upstream과 동일한 어휘 레이어가 적용됩니다.
 
 ## 개발
 

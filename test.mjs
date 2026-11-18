@@ -506,6 +506,10 @@ const polishOut = JSON.parse(mcpPolish.result.content[0].text);
 check('mcp: polish returns text + grade + changeRate', typeof polishOut.text === 'string' && polishOut.grade?.level && typeof polishOut.changeRate === 'number', JSON.stringify(polishOut).slice(0, 120));
 const mcpPrompt = call(6, 'humanize_prompt', { genre: 'column' });
 check('mcp: prompt returns system prompt', JSON.parse(mcpPrompt.result.content[0].text).system.includes('윤문 전문가'));
+const mcpPromptT = call(6, 'humanize_prompt', { mode: 'translate', genre: 'report' });
+const promptT = JSON.parse(mcpPromptT.result.content[0].text);
+check('mcp: prompt mode=translate returns translation prompt', promptT.mode === 'translate' && promptT.system.includes('번역·현지화') && promptT.system.includes('사실·약속 보존'), promptT.system.slice(0, 80));
+check('mcp: prompt bad mode rejected', call(6, 'humanize_prompt', { mode: 'x' }).result.isError === true);
 const mcpChunk = call(7, 'humanize_chunk', { text: doc, target: 1500, max: 2200 });
 check('mcp: chunk returns plan with headers', JSON.parse(mcpChunk.result.content[0].text).chunks.length >= 2);
 const badMerge = call(8, 'humanize_merge', { original: doc, rewritten: ['하나'] });
@@ -616,6 +620,26 @@ const manyHitsBlock = LX.hintBlock(Array.from({ length: 20 }, (_, i) => ({
 check('lexicon: hint block capped at MAX_HINTS + 생략 안내',
   (manyHitsBlock.match(/^- \[/gm) || []).length === LX.constants.MAX_HINTS && manyHitsBlock.includes('개 항목은 생략'));
 check('lexicon: genre key mapping (report → 보고서)', LX.genreKey('report') === '보고서' && LX.genreKey('paper') === '논문' && LX.genreKey('blog') === '일반');
+
+// ---------------------------------------------------------------------------
+// Translation mode (engine/prompt.js translate()) — K-Humanizer contract port.
+console.log('# translate prompt: EN→KO naturalization');
+const sandboxP = { window: {} };
+new Function('window', readFileSync(new URL('./engine/prompt.js', import.meta.url), 'utf8'))(sandboxP.window);
+const HP = sandboxP.window.HumanizePrompt;
+const tPrompt = HP.translate('report');
+check('translate: prompt builds with K-Humanizer contract',
+  HP.translate('auto').length > 3000 &&
+  ['사실·약속 보존', '추가 금지', '상충 처리', '한국어 우선', '금지된 단어는 없다', 'AI 티 후검', '자체검증', '출력 형식']
+    .every(k => tPrompt.includes(k)), '핵심 원칙 누락');
+check('translate: preserve list has prices/policies/placeholders',
+  tPrompt.includes('가격·통화·할인') && tPrompt.includes('환불·교환·배송·취소') && tPrompt.includes('자리표시자'));
+check('translate: register defaults by genre',
+  HP.translate('blog').includes('해요체') && HP.translate('formal').includes('합쇼체') && HP.translate('report').includes('합쇼체'));
+check('translate: no-banned-words stance + rulebook pass',
+  tPrompt.includes('금지된 단어는 없다') && tPrompt.includes('### A. 번역투'));
+check('translate: polish prompt unchanged',
+  HP.system('auto').includes('윤문 전문가') && !HP.system('auto').includes('번역·현지화'));
 
 // ---------------------------------------------------------------------------
 // Fidelity (fidelity.js) — JS port of slop-rewrite check_fidelity.py core
