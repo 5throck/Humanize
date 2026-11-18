@@ -23,3 +23,11 @@ related: docs/designs/2026-10-22-chunking-api-mcp-design.md
 - 규칙 로직의 원본이 하나뿐이다. 규칙을 고치면 웹·API·MCP·테스트가 동시에 바뀐다.
 - 대가: `new Function`은 런타임 컴파일이라 CSP가 엄격한 환경에서 막힐 수 있다 — 로컬 도구라 무관하며, 파일이 모두 신뢰된 저장소 산출물이라 안전하다.
 - IIFE + `window` 패턴이 프로젝트 규약으로 고정된다. 언젠가 ESM으로 전환하면 이 ADR을 supersede하고 로더도 함께 바꾼다.
+
+## Amendment — 2026-11-19: 노출 확장과 engine/ 이동
+
+이 결정의 원칙(단일 엔진 원본, API와 MCP가 같은 페이로드)은 유지되고 노출 면만 확장됐다:
+
+- 엔진 모듈은 `rules.js`/`prompt.js`/`chunking.js`에 lexicon-data.js·lexicon.js(어휘 레이어)·fidelity.js(의미 보존 검사)가 추가되어 6개가 됐고, ADR-0007에 따라 `engine/` 디렉터로 이동했다 — 로더는 파일 목록과 경로만 바뀌고 메커니즘(`new Function('window', src)` 샌드박스)은 그대로다.
+- `/api/*`와 MCP 도구는 lexicon(chunk hint·humanize_lexicon)과 fidelity(/api/fidelity·humanize_fidelity, merge 응답 내장)로 확장됐고, humanize_prompt는 mode(polish|translate)를 받는다 — 총 도구 7개. "API 문서와 MCP 도구 설명은 한쪽만 고쳐도 반대쪽이 틀리지 않는다"는 원래 성질은 그대로 유지된다.
+- 브라우저 IIFE + `window` 전역 패턴 유지 규약도 그대로다. ESM 전환이 필요해지면 이 ADR을 supersede한다.
