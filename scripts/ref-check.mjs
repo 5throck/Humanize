@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 
 const ROOT = new URL('..', import.meta.url);
 const registry = JSON.parse(readFileSync(new URL('references.json', ROOT), 'utf8'));
-const rulesSrc = readFileSync(new URL('rules.js', ROOT), 'utf8');
+const rulesSrc = readFileSync(new URL('engine/rules.js', ROOT), 'utf8');
 
 let errors = 0;
 function fail(msg) { errors++; console.error(`  ✕ ${msg}`); }

@@ -227,7 +227,7 @@ bun scripts/ref-check.mjs   # 출처 저장소 드리프트 점검
 bun scripts/eval.mjs        # 프롬프트 오프라인 평가 (아래 「프롬프트 개선 루프」 절)
 ```
 
-push(main)·PR마다 GitHub Actions가 스모크 테스트(`bun test.mjs`), 문법 검사(`bun build`로 app.js·chunking.js·mcp-server.mjs), `bun build serve.ts`를 실행합니다(`.github/workflows/ci.yml`). 변경은 main에 직접 푸시하기보다 **브랜치 → PR → CI 통과 → 병합** 흐름을 권장합니다.
+push(main)·PR마다 GitHub Actions가 스모크 테스트(`bun test.mjs`), 문법 검사(`bun build`로 app.js·engine/ 모듈·mcp-server.mjs), `bun build serve.ts`를 실행합니다(`.github/workflows/ci.yml`). 변경은 main에 직접 푸시하기보다 **브랜치 → PR → CI 통과 → 병합** 흐름을 권장합니다.
 
 아키텍처 결정 기록(ADR)과 기능 설계 문서는 [docs/](docs/README.md)에서 관리합니다. 출처별 채택 내역은 `references.json`(SSOT), 아키텍처 결정은 docs/, 사용자 안내는 이 문서가 담당합니다.
 
@@ -237,21 +237,24 @@ push(main)·PR마다 GitHub Actions가 스모크 테스트(`bun test.mjs`), 문�
 serve.ts          로컬 서버 — 정적 서빙, /api/* 규칙 엔진, CORS 프록시, .env 구성, 프로토콜 변환
 index.html        화면 구조
 style.css         스타일 (Pretendard, 반응형 2패널)
-rules.js          규칙 엔진 — quick-rules 포팅(탐지/수정/변경률/등급), 규칙별 출처(src) 표기
-prompt.js         LLM 모드 시스템 프롬프트 — monolith 철칙 + 룰북
-chunking.js       장문 청킹 — im-not-ai 분할/병합 파이프라인 JS 포팅 (무손실 self-check 포함)
-lexicon-data.js   어휘 사전 — im-not-ai lexicon.json verbatim (115개, 독자 평가 기반)
-lexicon.js        어휘 레이어 — [어휘 점검] 힌트 블록 생성 (일괄 치환 금지)
-fidelity.js       의미 보존 검사 — slop-rewrite check_fidelity 코어 포팅 (지어낸/사라진 것)
 app.js            UI 로직, LLM 클라이언트(청킹·어휘·fidelity 경로 포함), 통계 렌더링
-mcp-server.mjs    MCP stdio 서버 — 도구 6개 (제로 디펜던시 JSON-RPC)
-lib/engine.mjs    rules/prompt/chunking 로더 — serve.ts와 mcp-server.mjs 공용
+mcp-server.mjs    MCP stdio 서버 — 도구 7개 (제로 디펜던시 JSON-RPC)
+test.mjs          스모크 테스트 — 엔진·청킹·어휘·fidelity·MCP·레지스트리 (bun test.mjs)
+engine/           규칙 엔진 모듈 — 브라우저(index.html)와 서버(lib/engine.mjs)가 공유
+  rules.js          규칙 엔진 — quick-rules 포팅(탐지/수정/변경률/등급), 규칙별 출처(src) 표기
+  prompt.js         LLM 모드 시스템 프롬프트 — monolith 철칙 + 룰북
+  chunking.js       장문 청킹 — im-not-ai 분할/병합 파이프라인 JS 포팅 (무손실 self-check 포함)
+  lexicon-data.js   어휘 사전 — im-not-ai lexicon.json verbatim (115개, 독자 평가 기반)
+  lexicon.js        어휘 레이어 — [어휘 점검] 힌트 블록 생성 (일괄 치환 금지)
+  fidelity.js       의미 보존 검사 — slop-rewrite check_fidelity 코어 포팅 (지어낸/사라진 것)
+lib/engine.mjs    engine/ 로더 — serve.ts와 mcp-server.mjs 공용
 lib/eval-core.mjs 평가 순수 로직 — 픽스처 검증·점수·런 비교·few-shot 후보 분류
 eval/corpus.json  평가 코퍼스 — AI 티 원문 8편 + 편별 기대 신호(expect 태그)
 references.json   출처 레지스트리 (SSOT) — 출처별 채택/보류 내역, 규칙 ID 매핑, 점검일
 REFERENCES.md     출처 관리 문서 — 요약 표, 업데이트 절차, 새 출처 추가 기준
 docs/             설계 기록 — ADR(아키텍처 결정)·설계 문서·인덱스
 docs/assets/      데모 영상 원본 (demo.mp4 — README의 데모는 user-attachments로 재생)
+scripts/          ops 도구 전용 — 런타임 코드가 아닌 개발·운영 스크립트
 scripts/ref-check.mjs  출처 검증 + 업스트림 드리프트 점검 (bun scripts/ref-check.mjs)
 scripts/eval.mjs  오프라인 평가 하네스 — 규칙엔진/LLM 런 + 프롬프트 A/B 비교 (아래 평가 하네스 절)
 scripts/bootstrap-fewshot.mjs  eval 런의 하드케이스 → few-shot 후보 마크다운

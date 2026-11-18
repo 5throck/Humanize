@@ -1,7 +1,7 @@
 // Smoke test for Humanize rules.js — run: bun test.mjs (or bun run test)
 import { readFileSync } from 'node:fs';
 
-const src = readFileSync(new URL('./rules.js', import.meta.url), 'utf8');
+const src = readFileSync(new URL('./engine/rules.js', import.meta.url), 'utf8');
 const sandbox = { window: {} };
 new Function('window', src)(sandbox.window);
 const HR = sandbox.window.HumanizeRules;
@@ -9,7 +9,7 @@ const HR = sandbox.window.HumanizeRules;
 // Chunking + MCP share the same engine loader used by serve.ts.
 const sandbox2 = { window: {} };
 for (const f of ['rules.js', 'prompt.js', 'chunking.js', 'lexicon-data.js', 'lexicon.js', 'fidelity.js']) {
-  new Function('window', readFileSync(new URL(`./${f}`, import.meta.url), 'utf8'))(sandbox2.window);
+  new Function('window', readFileSync(new URL(`./engine/${f}`, import.meta.url), 'utf8'))(sandbox2.window);
 }
 const HC = sandbox2.window.HumanizeChunking;
 const LX = sandbox2.window.HumanizeLexicon;
