@@ -35,3 +35,4 @@
 | [2026-10-22-chunking-api-mcp-design](designs/2026-10-22-chunking-api-mcp-design.md) | 장문 청킹 포팅 + `/api/*` 5종 + MCP stdio 서버 (PR #8) |
 | [2026-11-19-lexicon-layer-design](designs/2026-11-19-lexicon-layer-design.md) | upstream v2.4.x 어휘 레이어 hints 경로 포팅 — lexicon.js·`/api/lexicon`·`humanize_lexicon` |
 | [2026-11-19-source-scan-fidelity-design](designs/2026-11-19-source-scan-fidelity-design.md) | 신규 출처 스캔(5건 등록) + slop-rewrite fidelity 검사기 포팅 — fidelity.js·`/api/fidelity`·`humanize_fidelity` |
+| [2026-11-19-translate-mode-design](designs/2026-11-19-translate-mode-design.md) | 번역 모드(EN→KO 자연화) — K-Humanizer 계약 포팅, 작업 토글·mode=translate |

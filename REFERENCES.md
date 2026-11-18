@@ -23,9 +23,9 @@
 | `hjongc-humanizer-kr` | [hjongc/humanizer-kr](https://github.com/hjongc/humanizer-kr) | reference | 미채택 — 원본과 고도 중복. v0.3.x(2026-11)의 voice profile 영구 저장은 개인화 설정(deferred 부류), span-level 편집은 이미 본 프로젝트 기본 구조 (사유는 references.json) |
 | `slop-rewrite` | [byungjunjang/slop-rewrite](https://github.com/byungjunjang/slop-rewrite) | benchmark | fidelity 검사기 코어 포팅(fidelity.js — 지어낸 수치·인용·자리표시자 S1 / 사라진 것 S2, 문서 단위 다중집합 비교). 원칙·문체·취향 3층위는 deferred(개인화 부류) |
 | `daleseo-korean-skills` | [DaleSeo/korean-skills](https://github.com/DaleSeo/korean-skills) | reference | 미채택 — humanizer는 upstream 계열, grammar-checker·style-guide는 맞춤법·스타일 일관성 축이라 목적이 다름 |
-| `k-humanizer` | [evergreentree97/K-Humanizer](https://github.com/evergreentree97/K-Humanizer) | reference | 미채택 — EN→KO 번역 자연화 축. A 카테고리(번역투)와 영역이 겹치지만 대상이 영어 원문 번역. 장르 파라미터 도입 시 재검토 |
+| `k-humanizer` | [evergreentree97/K-Humanizer](https://github.com/evergreentree97/K-Humanizer) | reference | 번역 모드 프롬프트 포팅(engine/prompt.js translate() — 사실·약속 보존 계약, 상충 처리 규약, 한국어 우선 구성, 레지스터 기본값). 웹 '번역(EN→KO)' 작업 토글과 /api/prompt·humanize_prompt의 mode=translate |
 | `kordoc` | [chrisryugj/kordoc](https://github.com/chrisryugj/kordoc) | reference | 미채택 — 공문서 포맷 변환(HWP·HWPX) 도구로 윤문·AI-tell 영역이 아님 |
-| `im-not-strange-ai` | [itssosunny/im-not-strange-ai](https://github.com/itssosunny/im-not-strange-ai) | reference | 미채택 — 라이선스 NOASSERTION·설명 부재로 새 출처 기준(라이선스 확인 가능) 미충족. 정리되면 재검토 |
+| `im-not-strange-ai` | [itssosunny/im-not-strange-ai](https://github.com/itssosunny/im-not-strange-ai) | reference | 미채택 — LICENSE 확인(MIT, upstream epoko77-ai 저작 + itssosunny 추가 수정): upstream 파생이라 고도 중복. 'Sunny 7규칙'은 우리 철칙 2와 동일 개념 |
 
 세부 채택 내역(어떤 규칙·프롬프트 라인에 반영됐는지)과 **보류 목록(deferred)** — 다음 기능 업데이트 때 다시 검토할 후보 — 은 `references.json`의 각 출처 항목을 참고하세요.
 

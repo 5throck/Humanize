@@ -49,10 +49,13 @@ const TOOLS = [
   },
   {
     name: 'humanize_prompt',
-    description: 'LLM 모드용 시스템 프롬프트(원본 humanize-monolith 계열)를 반환한다. 장르별 5종(auto/column/report/blog/formal). 장문일 때는 humanize_chunk로 나눠 청크마다 이 프롬프트를 시스템으로 쓴다.',
+    description: 'LLM 모드용 시스템 프롬프트를 반환한다. mode=polish(기본)는 AI 티 제거 윤문 프롬프트, mode=translate는 영어 원문을 자연스러운 한국어로 옮기는 EN→KO 번역·현지화 프롬프트(K-Humanizer 계약: 사실·약속 보존, 한국어 우선 문장 구성, 레지스터 기본값, 상충 처리). 장문일 때는 humanize_chunk로 나눠 청크마다 이 프롬프트를 시스템으로 쓴다.',
     inputSchema: {
       type: 'object',
-      properties: { genre: { type: 'string', enum: ['auto', 'column', 'report', 'blog', 'formal'], description: '글 장르 (기본 auto)' } },
+      properties: {
+        mode: { type: 'string', enum: ['polish', 'translate'], description: 'polish=윤문(기본), translate=EN→KO 번역' },
+        genre: { type: 'string', enum: ['auto', 'column', 'report', 'blog', 'formal'], description: '글 장르 (기본 auto)' },
+      },
     },
   },
   {
@@ -151,12 +154,20 @@ const TOOL_HANDLERS = {
     };
   },
   humanize_prompt(args) {
+    const mode = args.mode ?? 'polish';
+    if (mode !== 'polish' && mode !== 'translate') {
+      throw new ToolError('"mode"는 polish|translate 중 하나여야 합니다.');
+    }
     const genre = args.genre ?? 'auto';
     const allowed = ['auto', 'column', 'report', 'blog', 'formal'];
     if (typeof genre !== 'string' || !allowed.includes(genre)) {
       throw new ToolError(`"genre"는 ${allowed.join('|')} 중 하나여야 합니다.`);
     }
-    return { genre, system: engine.Prompt.system(genre) };
+    return {
+      mode,
+      genre,
+      system: mode === 'translate' ? engine.Prompt.translate(genre) : engine.Prompt.system(genre),
+    };
   },
   humanize_chunk(args) {
     const text = requireText(args.text, MAX_CHUNK_CHARS);

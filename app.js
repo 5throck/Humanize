@@ -11,6 +11,8 @@
     runBtn: document.getElementById('runBtn'),
     runBtnLabel: document.getElementById('runBtnLabel'),
     genre: document.getElementById('genre'),
+    workPolish: document.getElementById('workPolish'),
+    workTranslate: document.getElementById('workTranslate'),
     modeRules: document.getElementById('modeRules'),
     modeLlm: document.getElementById('modeLlm'),
     toolbarNote: document.getElementById('toolbarNote'),
@@ -147,6 +149,7 @@
 
   var state = {
     mode: 'rules', // 'rules' | 'llm'
+    work: 'polish', // 'polish' | 'translate'
     running: false,
     result: null, // polished text (for copy/download)
     llm: loadLlmConfig(),
@@ -172,6 +175,27 @@
     '앞으로 AI는 우리 삶의 모든 영역으로 확산되어질 것이다.',
     '필요한 것은 균형이다.'
   ].join('\n');
+  // Translation-mode sample — a sales email with the classic EN→KO traps
+  // (당신 subject, 병렬 구조, 조건 누락 유혹). Prices/dates/policies must survive.
+  var SAMPLE_TEXT_EN = [
+    'Subject: Your trial ends on March 15 — here is what to expect',
+    '',
+    'Hi Minji,',
+    '',
+    'Thank you for trying our Pro plan. Your free trial ends on March 15, 2026, and after that your workspace will switch to the Free plan automatically. You will keep all of your documents, but shared links stop working unless you upgrade.',
+    '',
+    'Here is what the Pro plan includes:',
+    '- Unlimited workspaces and 10 team members',
+    '- 100 GB of storage (the Free plan gives you 5 GB)',
+    '- Priority support with a response time of up to 24 hours',
+    '',
+    'The Pro plan is $12 per user per month, billed annually. You can cancel anytime before March 15 and you will not be charged. If you do nothing, we will bill the card you added during signup.',
+    '',
+    'If you have any questions, just reply to this email — we usually respond within a day.',
+    '',
+    'Best,',
+    'The Acme Team'
+  ].join('\n');
 
   // ---------------------------------------------------------------------------
   // UI helpers
@@ -183,10 +207,30 @@
     els.modeLlm.classList.toggle('active', mode === 'llm');
     els.modeRules.setAttribute('aria-checked', String(mode === 'rules'));
     els.modeLlm.setAttribute('aria-checked', String(mode === 'llm'));
-    els.toolbarNote.textContent = mode === 'rules'
+    updateToolbarNote();
+    updateLlmStatus();
+  }
+
+  // Work toggle (윤문 / 번역 EN→KO). Translation needs an LLM, so picking it
+  // in rules mode auto-switches to LLM mode with a visible note.
+  function setWork(work) {
+    state.work = work;
+    els.workPolish.classList.toggle('active', work === 'polish');
+    els.workTranslate.classList.toggle('active', work === 'translate');
+    els.workPolish.setAttribute('aria-checked', String(work === 'polish'));
+    els.workTranslate.setAttribute('aria-checked', String(work === 'translate'));
+    if (work === 'translate' && state.mode === 'rules') setMode('llm');
+    updateToolbarNote();
+  }
+
+  function updateToolbarNote() {
+    if (state.work === 'translate') {
+      els.toolbarNote.textContent = '번역 모드는 영어 원문을 자연스러운 한국어로 옮깁니다(EN→KO, 가격·날짜·정책·자리표시자 보존). 규칙 엔진으로는 동작하지 않고 LLM 모드에서 실행됩니다.';
+      return;
+    }
+    els.toolbarNote.textContent = state.mode === 'rules'
       ? '규칙 기반 모드는 인터넷·API 키 없이 동작합니다. 문맥까지 다듬으려면 LLM 모드를 사용하세요.'
       : 'LLM 모드는 설정한 API로 원본 humanize-monolith 프롬프트를 실행합니다. 추론 모델(GLM-5.3 계열 등)은 1~3분 걸릴 수 있습니다.';
-    updateLlmStatus();
   }
 
   // Toolbar chip that always shows whether the LLM key is actually loaded —
@@ -263,15 +307,22 @@
 
   function renderStats(before, after, applied, rate, mode) {
     var badges = [];
+    var translate = mode === 'translate';
 
-    badges.push(badge('처리', mode === 'rules' ? '규칙 기반' : 'LLM', 'muted'));
-    badges.push(badge('변경률', Math.round(rate * 1000) / 10 + '%',
-      rate >= 0.5 ? 'bad' : rate >= 0.3 ? 'warn' : 'good'));
-    badges.push(badge('AI 티 신호', before.total + '건 → ' + after.total + '건',
-      after.total === 0 ? 'good' : after.total < before.total ? 'warn' : 'bad'));
-    badges.push(badge('세부', 'S1 ' + before.s1 + '→' + after.s1 + ' · S2 ' + before.s2 + '→' + after.s2, 'muted'));
+    badges.push(badge('처리', translate ? '번역(EN→KO)' : mode === 'rules' ? '규칙 기반' : 'LLM', 'muted'));
+    if (!translate) {
+      badges.push(badge('변경률', Math.round(rate * 1000) / 10 + '%',
+        rate >= 0.5 ? 'bad' : rate >= 0.3 ? 'warn' : 'good'));
+    }
+    // In translation mode the "before" panel is the English source — S1/S2
+    // diffs against it are meaningless. Show only the Korean output's tells.
+    badges.push(badge('AI 티 신호', translate ? after.total + '건' : before.total + '건 → ' + after.total + '건',
+      after.total === 0 ? 'good' : translate ? (after.total <= 2 ? 'warn' : 'bad') : after.total < before.total ? 'warn' : 'bad'));
+    if (!translate) {
+      badges.push(badge('세부', 'S1 ' + before.s1 + '→' + after.s1 + ' · S2 ' + before.s2 + '→' + after.s2, 'muted'));
+    }
 
-    if (mode === 'llm') {
+    if (mode === 'llm' || translate) {
       // Grade per upstream quick-rules self-scoring — meaningful for LLM output,
       // which is expected to clear detect-only residuals. Rule mode cannot
       // (by design), so it shows a reduction figure instead of a fake grade.
@@ -285,8 +336,10 @@
     els.statBadges.innerHTML = badges.join('');
 
     // Applied fix list (rules mode) — chips of rule hits in the ORIGINAL text.
+    // Translation mode has no Korean "before" to diff against, so chips show
+    // the OUTPUT's residual tells instead.
     var chips = [];
-    before.findings.forEach(function (f) {
+    (before ? before.findings : after.findings).forEach(function (f) {
       chips.push(
         '<span class="chip sev' + f.severity + '" title="' + esc(f.name) + '">' +
         '<strong>' + f.id + '</strong> ' + esc(f.name) +
@@ -305,11 +358,13 @@
       noFixNote = ' 남은 신호는 임계 미달이거나 문맥 재작성이 필요한 패턴(감지 전용)이라 자동 수정 대상이 아닙니다 — 문맥 다듬기는 LLM 모드를 사용하세요.';
     }
     var gradeNote = '';
-    if (mode === 'llm') {
+    if (mode === 'llm' || translate) {
       var g2 = HumanizeRules.grade(after, rate);
       if (g2.level === 'C' || g2.level === 'D') gradeNote = ' ' + g2.reason + '.';
     }
-    els.outMeta.textContent = '원문 ' + before.total + '건 → 결과 ' + after.total + '건.' + fixedLine + noFixNote + gradeNote;
+    els.outMeta.textContent = translate
+      ? '번역 결과 AI 티 신호 ' + after.total + '건.' + noFixNote + gradeNote
+      : '원문 ' + before.total + '건 → 결과 ' + after.total + '건.' + fixedLine + noFixNote + gradeNote;
 
     els.stats.hidden = false;
   }
@@ -352,7 +407,7 @@
     var body = {
       model: cfg.model,
       messages: [
-        { role: 'system', content: HumanizePrompt.system(els.genre.value) },
+        { role: 'system', content: state.work === 'translate' ? HumanizePrompt.translate(els.genre.value) : HumanizePrompt.system(els.genre.value) },
         { role: 'user', content: userContent }
       ]
     };
@@ -453,17 +508,21 @@
   // Fidelity note for the stats meta line — fabricated-only issues are the
   // failure class (slop-rewrite check_fidelity port); dropped things are
   // report-only. Returns '' when clean or the layer is unavailable.
-  function fidelityNote(original, polished) {
+  // Translation mode (work='translate'): EN→KO — quotes/negations legitimately
+  // change language convention, so only numbers (prices/dates), units and
+  // placeholders are checked.
+  function fidelityNote(original, polished, work) {
     if (!window.HumanizeFidelity) return '';
     var r = HumanizeFidelity.check(original, polished);
+    var translate = work === 'translate';
     var parts = [];
     if (r.fabricated.numbers.length) parts.push('지어낸 수치 ' + r.fabricated.numbers.length + '건');
     if (r.fabricated.quotes.length) parts.push('지어낸 인용 ' + r.fabricated.quotes.length + '건');
     if (r.fabricated.placeholders.length) parts.push('지어낸 자리표시자 ' + r.fabricated.placeholders.length + '건');
     if (r.unitChanged.length) parts.push('단위 변경 ' + r.unitChanged.length + '건(' + r.unitChanged.map(function (u) { return u.from + '→' + u.to; }).join(', ') + ')');
     if (r.dropped.numbers.length) parts.push('사라진 수치 ' + r.dropped.numbers.length + '건');
-    if (r.dropped.quotes.length) parts.push('사라진 인용 ' + r.dropped.quotes.length + '건');
-    if (r.negations.droppedFamilies && Object.keys(r.negations.droppedFamilies).length) parts.push('부정 감소');
+    if (!translate && r.dropped.quotes.length) parts.push('사라진 인용 ' + r.dropped.quotes.length + '건');
+    if (!translate && r.negations.droppedFamilies && Object.keys(r.negations.droppedFamilies).length) parts.push('부정 감소');
     return parts.length ? ' ⚠ 의미 보존 확인 필요 — ' + parts.join(', ') : '';
   }
 
@@ -475,6 +534,7 @@
       throw err;
     }
     var chat = chatRequest(cleanStr(cfg.baseUrl, LLM_DEFAULTS.baseUrl));
+    var translate = state.work === 'translate';
 
     // Long-text path (upstream im-not-ai chunking port): split losslessly,
     // rewrite body chunks in parallel, merge with ratio validation. Chunking
@@ -489,23 +549,25 @@
     }
 
     // [어휘 점검] block prepended to the user message (upstream order:
-    // hint blocks live in the combined input before [원문 시작]).
-    var lex = lexHint(text);
+    // hint blocks live in the combined input before [원문 시작]). The lexicon
+    // targets Korean awkwardness — skipped in translation mode (English input).
+    var lex = translate ? '' : lexHint(text);
     var out = await llmChatOnce(lex ? lex + '\n\n' + text : text, chat, text.length);
-    var before = HumanizeRules.analyze(text);
     var after = HumanizeRules.analyze(out);
-    var rate = HumanizeRules.changeRate(text, out);
+    var rate = translate ? 0 : HumanizeRules.changeRate(text, out);
     renderOutput(out);
-    renderStats(before, after, null, rate, 'llm');
-    els.outMeta.textContent += fidelityNote(text, out);
+    renderStats(translate ? null : HumanizeRules.analyze(text), after, null, rate, translate ? 'translate' : 'llm');
+    els.outMeta.textContent += fidelityNote(text, out, state.work);
   }
 
   async function polishLlmChunked(text, plan, chat) {
+    var translate = state.work === 'translate';
     var bodyChunks = [];
     plan.chunks.forEach(function (c) {
       if (!c.passthrough) bodyChunks.push(c);
     });
-    setProgress('장문 감지 — 본문 ' + bodyChunks.length + '개 청크로 나눠 윤문합니다' +
+    setProgress('장문 감지 — 본문 ' + bodyChunks.length + '개 청크로 나눠 ' +
+      (translate ? '번역합니다' : '윤문합니다') +
       (plan.chunks.length > bodyChunks.length ? ' (말미 각주 블록 ' + (plan.chunks.length - bodyChunks.length) + '개는 원문 그대로 유지)' : '') + '…');
 
     // Upstream orchestrates chunks with max 4 concurrent monolith calls.
@@ -519,11 +581,12 @@
         // The [청크 컨텍스트] header keeps the model from inventing
         // 서두/결말 or merging the heading into body sentences; the
         // [어휘 점검] block lists this chunk's lexicon hits (per-chunk,
-        // like upstream's combined chunk input files).
-        var lex = lexHint(c.text);
+        // like upstream's combined chunk input files) — polish only,
+        // the lexicon targets Korean awkwardness.
+        var lex = translate ? '' : lexHint(c.text);
         results[my] = await llmChatOnce(c.header + '\n' + (lex ? lex + '\n\n' : '') + c.text, chat, c.text.length);
         done++;
-        setProgress('청크 윤문 중 ' + done + '/' + bodyChunks.length + '…');
+        setProgress('청크 ' + (translate ? '번역' : '윤문') + ' 중 ' + done + '/' + bodyChunks.length + '…');
       }
     }
     var workers = [];
@@ -531,17 +594,16 @@
     await Promise.all(workers);
 
     var merged = HumanizeChunking.merge(text, plan, results);
-    var before = HumanizeRules.analyze(text);
     var after = HumanizeRules.analyze(merged.text);
-    var rate = HumanizeRules.changeRate(text, merged.text);
+    var rate = translate ? 0 : HumanizeRules.changeRate(text, merged.text);
     renderOutput(merged.text);
-    renderStats(before, after, null, rate, 'llm');
+    renderStats(translate ? null : HumanizeRules.analyze(text), after, null, rate, translate ? 'translate' : 'llm');
     if (merged.warnings.length) {
       // 유실/증식 ratio warnings — review hints, not fatal (mirrors upstream
       // reassemble_chunks --strict=false behavior).
       els.outMeta.textContent += ' ⚠ ' + merged.warnings.join(' / ');
     }
-    els.outMeta.textContent += fidelityNote(text, merged.text);
+    els.outMeta.textContent += fidelityNote(text, merged.text, state.work);
   }
 
   async function run() {
@@ -552,7 +614,18 @@
       els.input.focus();
       return;
     }
-    if (!/[가-힣]/.test(text)) {
+    if (state.work === 'translate') {
+      // Translation input is English (source) — the Hangul guard applies to
+      // polish only. Rules mode cannot translate (deterministic Korean rules).
+      if (state.mode === 'rules') {
+        showError('번역은 규칙 엔진으로 동작하지 않습니다 — 상단에서 LLM (API 키) 모드를 선택하세요.');
+        return;
+      }
+      if (!/[A-Za-z]/.test(text)) {
+        showError('번역 모드에는 영어 원문을 입력하세요.');
+        return;
+      }
+    } else if (!/[가-힣]/.test(text)) {
       showError('한국어 텍스트만 처리할 수 있습니다.');
       return;
     }
@@ -563,7 +636,8 @@
 
     setRunning(true);
     els.output.classList.add('is-empty');
-    els.output.innerHTML = '<p class="output-placeholder">윤문 중입니다…</p>';
+    els.output.innerHTML = '<p class="output-placeholder">' +
+      (state.work === 'translate' ? '번역 중입니다…' : '윤문 중입니다…') + '</p>';
     try {
       if (state.mode === 'rules') polishRules(text);
       else await polishLlm(text);
@@ -589,9 +663,11 @@
   els.input.addEventListener('input', updateCharCount);
   els.modeRules.addEventListener('click', function () { setMode('rules'); });
   els.modeLlm.addEventListener('click', function () { setMode('llm'); });
+  els.workPolish.addEventListener('click', function () { setWork('polish'); });
+  els.workTranslate.addEventListener('click', function () { setWork('translate'); });
 
   els.sampleBtn.addEventListener('click', function () {
-    els.input.value = SAMPLE_TEXT;
+    els.input.value = state.work === 'translate' ? SAMPLE_TEXT_EN : SAMPLE_TEXT;
     updateCharCount();
     els.input.focus();
   });
