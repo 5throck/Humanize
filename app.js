@@ -450,6 +450,23 @@
     return HumanizeLexicon.hintBlockFor(text, els.genre.value);
   }
 
+  // Fidelity note for the stats meta line — fabricated-only issues are the
+  // failure class (slop-rewrite check_fidelity port); dropped things are
+  // report-only. Returns '' when clean or the layer is unavailable.
+  function fidelityNote(original, polished) {
+    if (!window.HumanizeFidelity) return '';
+    var r = HumanizeFidelity.check(original, polished);
+    var parts = [];
+    if (r.fabricated.numbers.length) parts.push('지어낸 수치 ' + r.fabricated.numbers.length + '건');
+    if (r.fabricated.quotes.length) parts.push('지어낸 인용 ' + r.fabricated.quotes.length + '건');
+    if (r.fabricated.placeholders.length) parts.push('지어낸 자리표시자 ' + r.fabricated.placeholders.length + '건');
+    if (r.unitChanged.length) parts.push('단위 변경 ' + r.unitChanged.length + '건(' + r.unitChanged.map(function (u) { return u.from + '→' + u.to; }).join(', ') + ')');
+    if (r.dropped.numbers.length) parts.push('사라진 수치 ' + r.dropped.numbers.length + '건');
+    if (r.dropped.quotes.length) parts.push('사라진 인용 ' + r.dropped.quotes.length + '건');
+    if (r.negations.droppedFamilies && Object.keys(r.negations.droppedFamilies).length) parts.push('부정 감소');
+    return parts.length ? ' ⚠ 의미 보존 확인 필요 — ' + parts.join(', ') : '';
+  }
+
   async function polishLlm(text) {
     var cfg = state.llm;
     if (!cfg.apiKey && !envKeyConfigured()) {
@@ -480,6 +497,7 @@
     var rate = HumanizeRules.changeRate(text, out);
     renderOutput(out);
     renderStats(before, after, null, rate, 'llm');
+    els.outMeta.textContent += fidelityNote(text, out);
   }
 
   async function polishLlmChunked(text, plan, chat) {
@@ -523,6 +541,7 @@
       // reassemble_chunks --strict=false behavior).
       els.outMeta.textContent += ' ⚠ ' + merged.warnings.join(' / ');
     }
+    els.outMeta.textContent += fidelityNote(text, merged.text);
   }
 
   async function run() {

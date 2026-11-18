@@ -527,7 +527,7 @@ async function llmPost(req: http.IncomingMessage, res: http.ServerResponse): Pro
 // ---------------------------------------------------------------------------
 
 const ENGINE = loadEngine();
-const { Rules, Prompt, Chunking, Lexicon } = ENGINE;
+const { Rules, Prompt, Chunking, Lexicon, Fidelity } = ENGINE;
 
 // Mirrors app.js MAX_CHARS — the UI cannot send more either.
 const MAX_API_CHARS = 30_000;
@@ -652,6 +652,12 @@ async function apiPost(req: http.IncomingMessage, res: http.ServerResponse, path
         });
         return;
       }
+      case "/api/fidelity": {
+        const original = requireText(body.original ?? body.text);
+        const polished = requireText(body.polished);
+        sendJson(res, 200, Fidelity.check(original, polished));
+        return;
+      }
       case "/api/merge": {
         const original = requireText(body.original, MAX_CHUNK_API_CHARS);
         if (!Array.isArray(body.rewritten)) {
@@ -668,6 +674,7 @@ async function apiPost(req: http.IncomingMessage, res: http.ServerResponse, path
           text: merged.text,
           warnings: merged.warnings,
           chunks: merged.chunks,
+          fidelity: Fidelity.check(original, merged.text),
           after,
           changeRate: rate,
           grade: Rules.grade(after, rate),
@@ -675,7 +682,7 @@ async function apiPost(req: http.IncomingMessage, res: http.ServerResponse, path
         return;
       }
       default:
-        sendError(res, 404, `알 수 없는 API 경로: ${pathName} (사용 가능: /api/analyze /api/polish /api/prompt /api/chunk /api/merge /api/lexicon)`);
+        sendError(res, 404, `알 수 없는 API 경로: ${pathName} (사용 가능: /api/analyze /api/polish /api/prompt /api/chunk /api/merge /api/lexicon /api/fidelity)`);
     }
   } catch (e) {
     // ChunkingError and validation failures are caller errors → 400.

@@ -304,6 +304,94 @@
       "adopted": [],
       "not_adopted_reason": "패턴 체계가 im-not-ai와 고도 중복(초기 판정 유지). v0.2.0~0.3.1(2026-11-17~18)은 span-level 편집 절차화와 voice profile 영구 저장·명령 체계를 추가했는데, 전자는 이미 본 프로젝트의 기본 구조(스팬 단위 규칙·수술)이고 후자는 개인화 설정(dotori brand voice와 같은 deferred 부류)이라 채택하지 않음.",
       "last_checked": "2026-11-19"
+    },
+    {
+      "id": "slop-rewrite",
+      "name": "byungjunjang/slop-rewrite",
+      "repo": "byungjunjang/slop-rewrite",
+      "url": "https://github.com/byungjunjang/slop-rewrite",
+      "role": "benchmark",
+      "license": "MIT",
+      "summary": "AI가 쓴 한국어 초안을 원칙·문체 가이드·개인 취향 세 층위로 다시 쓰는 윤문 에이전트. 'LLM이 고치고 코드는 확인한다'의 분리와 원문↔결과 문서 단위 다중집합 fidelity 검사기(check_fidelity.py F1~F9: 지어낸 것 S1 / 사라진 것 S2)가 강점. AT 카탈로그(134개)는 대부분 hk(upstream)·장피엠 규칙 매핑이라 중복.",
+      "key_files": [
+        ".claude/skills/slop-rewrite/scripts/check_fidelity.py",
+        "principles/ai-tells-ko.md"
+      ],
+      "adopted": [
+        {
+          "what": "fidelity 검사기 코어 포팅 (2026-11-19) — check_fidelity.py의 F1 수치·단위(배수 단위 정규화 포함), F2 인용(added=공백 제거 부분문자열, dropped=raw 잔존 확인), F3 부정(계열별 카운트, 대조형 아니라/아닌가 제외), F7 자리표시자를 fidelity.js로 이식. 문서 단위 다중집합 비교(문장 짝짓기 없음), 지어낸 것(S1)만 실패급·사라진 것(S2)은 보고인 upstream 등급 체계 유지. 노출: /api/fidelity, /api/merge·MCP merge 응답의 fidelity 필드, humanize_fidelity 도구(7개로 증가), 웹 LLM 모드 결과 메타의 '의미 보존 확인 필요' 경고. AT 카테고리(직역어휘 축·봉인·고아 등)는 upstream 어휘 레이어와 중복 확인.",
+          "targets": {
+            "fidelity": "fidelity.js 전체 + serve.ts/mcp-server.mjs/app.js 노출"
+          },
+          "date": "2026-11-19"
+        }
+      ],
+      "deferred": [
+        "F4 표제·F5 문단 수 비율 게이트·F8 표 구조·F9 각주 위치 검증 — 구조는 청킹이 보존하고 merge가 변경률을 보고하는 이 프로젝트 구조와 겹침. 필요하면 다음 회차",
+        "합성 수치 canon(1억 2,000만 → 120,000,000) — 첫 마디만 곱하는 단순화로 포팅, 합성 마디 곱은 미포팅",
+        "원칙·문체 가이드·취향 3층위(styleguide-builder·taste-builder) — 개인화 설정, hjongc voice profile·dotori brand voice와 같은 deferred 부류",
+        "AT-39 검수 상태 혼입 등 S1 literal 몇 개 — 다음 규칙 회차 검토 후보"
+      ],
+      "not_adopted_reason": "",
+      "last_checked": "2026-11-19"
+    },
+    {
+      "id": "daleseo-korean-skills",
+      "name": "DaleSeo/korean-skills",
+      "repo": "DaleSeo/korean-skills",
+      "url": "https://github.com/DaleSeo/korean-skills",
+      "role": "reference",
+      "license": "MIT",
+      "summary": "humanizer·grammar-checker·style-guide 3종 한국어 스킬 모음. humanizer는 upstream 계열, grammar-checker(맞춤법·띄어쓰기)·style-guide(문서 스타일 일관성)는 AI-tell이 아닌 다른 축.",
+      "key_files": [
+        "skills/humanizer/SKILL.md"
+      ],
+      "adopted": [],
+      "not_adopted_reason": "grammar-checker·style-guide는 맞춤법·스타일 일관성 교정이라 본 프로젝트의 AI-tell 제거 축과 목적이 다르다. humanizer 스킬은 upstream(im-not-ai) 계열이라 중복.",
+      "last_checked": "2026-11-19"
+    },
+    {
+      "id": "k-humanizer",
+      "name": "evergreentree97/K-Humanizer",
+      "repo": "evergreentree97/K-Humanizer",
+      "url": "https://github.com/evergreentree97/K-Humanizer",
+      "role": "reference",
+      "license": "MIT",
+      "summary": "영문 초안을 한국 고객용 자연 한국어로 번역·다듬는 스킬. 가격·날짜·정책·자리표시자 보존을 명시.",
+      "key_files": [
+        "SKILL.md"
+      ],
+      "adopted": [],
+      "not_adopted_reason": "EN→KO 번역투 축은 우리 A 카테고리(번역투)와 영역이 겹치지만 대상이 '영어 원문 번역'이라 다른 문제. 장르 파라미터(번역 모드) 도입 시 재검토.",
+      "last_checked": "2026-11-19"
+    },
+    {
+      "id": "kordoc",
+      "name": "chrisryugj/kordoc",
+      "repo": "chrisryugj/kordoc",
+      "url": "https://github.com/chrisryugj/kordoc",
+      "role": "reference",
+      "license": "MIT",
+      "summary": "한국 공문서(HWP·HWPX·PDF) ↔ Markdown 변환 라이브러리·CLI·MCP 서버. 양식 채우기·신구대조·서식 보존 편집.",
+      "key_files": [
+        "README.md"
+      ],
+      "adopted": [],
+      "not_adopted_reason": "문서 포맷 변환 도구로 윤문·AI-tell 영역이 아니다. 다만 MCP 서버 설계는 참고될 만함(ADR-0002와 같은 제로 디펜던시 접근인지는 미확인).",
+      "last_checked": "2026-11-19"
+    },
+    {
+      "id": "im-not-strange-ai",
+      "name": "itssosunny/im-not-strange-ai",
+      "repo": "itssosunny/im-not-strange-ai",
+      "url": "https://github.com/itssosunny/im-not-strange-ai",
+      "role": "reference",
+      "license": "확인 불가 (NOASSERTION)",
+      "summary": "설명문 없음, 라이선스 NOASSERTION — 신규 출처 기준(라이선스 확인 가능)을 충족하지 않아 심층 검토하지 않음.",
+      "key_files": [],
+      "adopted": [],
+      "not_adopted_reason": "라이선스 확인 불가(NOASSERTION) + 설명 부재 — 새 출처 추가 기준 미충족. ★162로 주목할 만하니 라이선스가 정리되면 재검토.",
+      "last_checked": "2026-11-19"
     }
   ]
 }

@@ -8,11 +8,12 @@ const HR = sandbox.window.HumanizeRules;
 
 // Chunking + MCP share the same engine loader used by serve.ts.
 const sandbox2 = { window: {} };
-for (const f of ['rules.js', 'prompt.js', 'chunking.js', 'lexicon-data.js', 'lexicon.js']) {
+for (const f of ['rules.js', 'prompt.js', 'chunking.js', 'lexicon-data.js', 'lexicon.js', 'fidelity.js']) {
   new Function('window', readFileSync(new URL(`./${f}`, import.meta.url), 'utf8'))(sandbox2.window);
 }
 const HC = sandbox2.window.HumanizeChunking;
 const LX = sandbox2.window.HumanizeLexicon;
+const FD = sandbox2.window.HumanizeFidelity;
 const { handleMessage } = await import('./mcp-server.mjs');
 
 let failures = 0;
@@ -494,8 +495,8 @@ check('mcp: initialize echoes protocolVersion + serverInfo', init?.result?.proto
 check('mcp: notification stays silent', handleMessage({ jsonrpc: '2.0', method: 'notifications/initialized' }) === null);
 check('mcp: ping answers', handleMessage({ jsonrpc: '2.0', id: 2, method: 'ping' })?.result != null);
 const tools = handleMessage({ jsonrpc: '2.0', id: 3, method: 'tools/list' });
-check('mcp: tools/list exposes 6 tools', tools?.result?.tools?.length === 6 &&
-  ['humanize_analyze', 'humanize_polish', 'humanize_prompt', 'humanize_chunk', 'humanize_merge', 'humanize_lexicon']
+check('mcp: tools/list exposes 7 tools', tools?.result?.tools?.length === 7 &&
+  ['humanize_analyze', 'humanize_polish', 'humanize_prompt', 'humanize_chunk', 'humanize_merge', 'humanize_lexicon', 'humanize_fidelity']
     .every(n => tools.result.tools.some(t => t.name === n)), JSON.stringify(tools?.result?.tools?.map(t => t.name)));
 const call = (id, name, args) => handleMessage({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } });
 const mcpAnalyze = call(4, 'humanize_analyze', { text: sample });
@@ -615,6 +616,34 @@ const manyHitsBlock = LX.hintBlock(Array.from({ length: 20 }, (_, i) => ({
 check('lexicon: hint block capped at MAX_HINTS + 생략 안내',
   (manyHitsBlock.match(/^- \[/gm) || []).length === LX.constants.MAX_HINTS && manyHitsBlock.includes('개 항목은 생략'));
 check('lexicon: genre key mapping (report → 보고서)', LX.genreKey('report') === '보고서' && LX.genreKey('paper') === '논문' && LX.genreKey('blog') === '일반');
+
+// ---------------------------------------------------------------------------
+// Fidelity (fidelity.js) — JS port of slop-rewrite check_fidelity.py core
+// (F1 수치·단위 / F2 인용 / F3 부정 / F7 자리표시자). Document-level multiset
+// comparison: sentences are never paired. 지어낸 것만 실패급.
+console.log('# fidelity: fabricated vs dropped (slop-rewrite port)');
+let fr = FD.check('매출이 증가했다.', '매출이 30% 증가했다.');
+check('fidelity: 지어낸 수치 감지', fr.fabricated.numbers.length === 1 && fr.fabricated.numbers[0].label === '30%');
+fr = FD.check('매출이 30% 증가했다.', '매출이 증가했다.');
+check('fidelity: 사라진 수치 보고 (S2 — clean에 반영 안 함)', fr.dropped.numbers.length === 1 && fr.dropped.numbers[0].label === '30%' && fr.clean === true);
+fr = FD.check('실업률이 12% 올랐다.', '실업률이 12%p 올랐다.');
+check('fidelity: 같은 값 다른 단위 (12% → 12%p)', fr.unitChanged.length === 1 && fr.unitChanged[0].from === '12%' && fr.unitChanged[0].to === '12%p');
+fr = FD.check('비용이 3천 원 들었다.', '비용이 3,000원 들었다.');
+check('fidelity: 배수 단위 정규화 (3천 원 ↔ 3,000원)', fr.clean === true, JSON.stringify({ f: fr.fabricated.numbers, d: fr.dropped.numbers }));
+fr = FD.check('그는 "성실하다"라고 말했다.', '그는 "부지런한 성실함의 화신이다"라고 했다.');
+check('fidelity: 지어낸 인용 감지', fr.fabricated.quotes.length === 1);
+fr = FD.check('그는 "성실하다"라고 말했다.', '그는 "성실하다"라고 말했다.');
+check('fidelity: 인용 유지 무오판', fr.fabricated.quotes.length === 0 && fr.dropped.quotes.length === 0);
+fr = FD.check('문제가 없다.', '문제가 있다.');
+check('fidelity: 부정 소실 보고 (없 계열)', fr.negations.droppedFamilies['없']?.orig === 1);
+fr = FD.check('결과를 보고했다.', '결과를 보고했다. [출처 필요]');
+check('fidelity: 자리표시자 지어냄 감지', fr.fabricated.placeholders.length === 1);
+fr = FD.check('다음 코드다.\n```js\nx = 42;\n```', '다음 코드다.\n```js\nx = 42;\ny = 99;\n```');
+check('fidelity: 코드블록 수치 면제', fr.fabricated.numbers.length === 0);
+fr = FD.check('매출은 30% 늘었고 1,200명이 썼다.', '매출은 30% 늘었고 1,200명이 썼다.');
+check('fidelity: 동일 텍스트 무오판', fr.clean === true);
+fr = FD.check('그는 "A라고 했다. B도 말했다."', 'B도 말했다. 그는 "A라고 했다."');
+check('fidelity: 인용이 그대로 남지 않음 → S2 보고 (upstream 규약)', fr.dropped.quotes.length === 1 && fr.fabricated.quotes.length === 0);
 
 // ---------------------------------------------------------------------------
 

@@ -23,11 +23,12 @@ jobs:
       # Syntax check via bun build — parse without executing. app.js is a
       # browser-only IIFE that bun test.mjs cannot import; chunking.js and
       # mcp-server.mjs are also loaded by the tests but re-checked cheaply.
-      - name: Syntax-check app.js / chunking.js / lexicon.js / mcp-server.mjs
+      - name: Syntax-check app.js / chunking.js / lexicon.js / fidelity.js / mcp-server.mjs
         run: |
           bun build app.js --outfile /dev/null
           bun build chunking.js --outfile /dev/null
           bun build lexicon.js --outfile /dev/null
+          bun build fidelity.js --outfile /dev/null
           bun build mcp-server.mjs --target=bun --outfile /dev/null
 
       # serve.ts must type-strip/build cleanly (bun runs it without a build

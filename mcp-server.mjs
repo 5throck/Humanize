@@ -25,7 +25,7 @@ import { loadEngine } from './lib/engine.mjs';
 const SERVER_INFO = { name: 'humanize', version: '1.0.0' };
 // Mirrors app.js MAX_CHARS — the UI cannot send more either.
 const MAX_CHARS = 30000;
-// chunk/merge exist FOR long documents; a bigger ceiling is the point.
+// chunk/merge/fidelity exist FOR full documents; a bigger ceiling is the point.
 const MAX_CHUNK_CHARS = 200000;
 
 const engine = loadEngine();
@@ -92,6 +92,18 @@ const TOOLS = [
         max: { type: 'number', description: 'chunk 호출 때 쓴 max와 같은 값' },
       },
       required: ['original', 'rewritten'],
+    },
+  },
+  {
+    name: 'humanize_fidelity',
+    description: '원문과 윤문 결과를 대조해 결과에 지어낸 것(결과에만 있는 수치·인용·자리표시자, 같은 값 다른 단위)과 사라진 것(수치·인용·부정 감소)을 찾는다. 문장을 짝짓지 않는 문서 단위 다중집합 비교. 지어낸 것만 실패급이고 사라진 것은 보고다 — 뜻 뒤집힘 판정은 실행자 몫.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        original: { type: 'string', description: '원문' },
+        polished: { type: 'string', description: '윤문 결과' },
+      },
+      required: ['original', 'polished'],
     },
   },
 ];
@@ -181,10 +193,14 @@ const TOOL_HANDLERS = {
       text: merged.text,
       warnings: merged.warnings,
       chunks: merged.chunks,
+      fidelity: engine.Fidelity.check(original, merged.text),
       after,
       changeRate: rate,
       grade: engine.Rules.grade(after, rate),
     };
+  },
+  humanize_fidelity(args) {
+    return engine.Fidelity.check(requireText(args.original, MAX_CHUNK_CHARS, 'original'), requireText(args.polished, MAX_CHUNK_CHARS, 'polished'));
   },
 };
 
