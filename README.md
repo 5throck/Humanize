@@ -223,6 +223,7 @@ claude mcp add humanize -- bun mcp-server.mjs
 
 ```bash
 bun test.mjs        # 스모크 테스트 — 규칙 ↔ references.json 레지스트리, 청킹, MCP 핸들러, 평가 코퍼스
+bun run verify      # 병합 전 점검 한 줄 — 테스트 + 레지스트리 검증 + serve.ts 빌드
 bun serve.ts        # 로컬 실행
 bun scripts/ref-check.mjs   # 출처 저장소 드리프트 점검
 bun scripts/eval.mjs        # 프롬프트 오프라인 평가 (아래 「프롬프트 개선 루프」 절)
