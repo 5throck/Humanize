@@ -8,6 +8,7 @@
     "start": "bun serve.ts",
     "dev": "bun serve.ts",
     "test": "bun test.mjs",
+    "verify": "bun test.mjs && bun scripts/ref-check.mjs --local && bun build serve.ts --target=bun --outdir dist",
     "ref-check": "bun scripts/ref-check.mjs",
     "eval": "bun scripts/eval.mjs"
   },
