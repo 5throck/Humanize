@@ -8,7 +8,18 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      # One OS failing must not cancel the other runners — each reports
+      # independently so a Windows-only or macOS-only break stays visible.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    # bash is available on all three runners (windows-latest ships Git Bash)
+    # and keeps the run blocks identical across the matrix.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -23,14 +34,15 @@ jobs:
       # Syntax check via bun build — parse without executing. app.js is a
       # browser-only IIFE that bun test.mjs cannot import; engine modules
       # (chunking/lexicon/fidelity) and mcp-server.mjs are also loaded by
-      # the tests but re-checked cheaply.
+      # the tests but re-checked cheaply. Outfiles go to RUNNER_TEMP instead
+      # of /dev/null — a POSIX-only path that does not exist on Windows.
       - name: Syntax-check app.js / engine modules / mcp-server.mjs
         run: |
-          bun build app.js --outfile /dev/null
-          bun build engine/chunking.js --outfile /dev/null
-          bun build engine/lexicon.js --outfile /dev/null
-          bun build engine/fidelity.js --outfile /dev/null
-          bun build mcp-server.mjs --target=bun --outfile /dev/null
+          bun build app.js --outfile "$RUNNER_TEMP/app.js"
+          bun build engine/chunking.js --outfile "$RUNNER_TEMP/chunking.js"
+          bun build engine/lexicon.js --outfile "$RUNNER_TEMP/lexicon.js"
+          bun build engine/fidelity.js --outfile "$RUNNER_TEMP/fidelity.js"
+          bun build mcp-server.mjs --target=bun --outfile "$RUNNER_TEMP/mcp-server.js"
 
       # serve.ts must type-strip/build cleanly (bun runs it without a build
       # step, so this is the closest CI-safe equivalent of "server boots")
