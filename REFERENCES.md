@@ -15,13 +15,13 @@
 
 | id | 저장소 | role | 우리가 가져온 것 |
 |---|---|---|---|
-| `im-not-ai` | [epoko77-ai/im-not-ai](https://github.com/epoko77-ai/im-not-ai) | **upstream** | 룰북(A~J) 전체, 철칙·자체검증·등급 체계 (기본 출처). v2.7(2026-10): H-1 문단 밀집 재정의, E-2 피동 진행 한정, A-11 보수화. 장문 청킹 파이프라인도 JS 포팅(chunking.js). v2.4.x(2026-11): 어휘 레이어 hints 경로 JS 포팅(lexicon.js + lexicon-data.js — 115개 독자 평가 낱말 사전, `[어휘 점검]` 블록) |
-| `isaac-humanizer-ko` | [IsaacEryn/humanizer-ko](https://github.com/IsaacEryn/humanizer-ko) | benchmark | A-8 보여지/쓰여지, K 카테고리(챗봇 잔여물), 2-pass 자문 루프, 군집 원칙. v1.4(2026-10): 임계 교정(결산 2회+·피동 진행 한정), 역주입 자가 점검 |
+| `im-not-ai` | [epoko77-ai/im-not-ai](https://github.com/epoko77-ai/im-not-ai) | **upstream** | 룰북(A~J) 전체, 철칙·자체검증·등급 체계 (기본 출처). v2.7(2026-10): H-1 문단 밀집 재정의, E-2 피동 진행 한정, A-11 보수화. 장문 청킹 파이프라인도 JS 포팅(chunking.js). v2.4.x(2026-11): 어휘 레이어 hints 경로 JS 포팅(lexicon.js + lexicon-data.js — 115개 독자 평가 낱말 사전, `[어휘 점검]` 블록). v2.4.8(2026-11): 처방 3곳 정정 — F-5 '-적' 탈락은 굳은 두 낱말 합성어만, C-8 해체 시 대조 표지 유지, E-5 관형절 압축 삭제(우리 미포함 확인). 프롬프트 라인만 반영 |
+| `isaac-humanizer-ko` | [IsaacEryn/humanizer-ko](https://github.com/IsaacEryn/humanizer-ko) | benchmark | A-8 보여지/쓰여지, K 카테고리(챗봇 잔여물), 2-pass 자문 루프, 군집 원칙. v1.4(2026-10): 임계 교정(결산 2회+·피동 진행 한정), 역주입 자가 점검. v1.5.1(2026-11): §37 장문 비율 기준(C-11 게이트 — 30문장+는 든 문장 1/5 초과만) + 앞 절 30자+ 쉼표 유지 |
 | `patina` | [devswha/patina](https://github.com/devswha/patina) | benchmark | J-4 마크업 잔재, J-5 구분선 과다, E-3 평서 단조, E-4 MATTR, 극성 반전 스캔 |
 | `yoonmoon` | [amondnet/yoonmoon](https://github.com/amondnet/yoonmoon) | benchmark | 과소 서술 보정 패스 (프롬프트 절차 4) |
-| `dotori-korean-humanizer` | [dotoricode/korean-humanizer](https://github.com/dotoricode/korean-humanizer) | reference | 오탐 화이트리스트 발상, eval fixture 방식. v1.1(2026-10): 여섯 간결화 기준의 의미 보존 축(철칙 1). 2026-10-29 보강 검토 — 기존 채택분 재수록이라 별도 포팅 없음 |
+| `dotori-korean-humanizer` | [dotoridot/korean-humanizer](https://github.com/dotoridot/korean-humanizer) | reference | 오탐 화이트리스트 발상, eval fixture 방식. v1.1(2026-10): 여섯 간결화 기준의 의미 보존 축(철칙 1). 2026-10-29 보강 검토 — 기존 채택분 재수록이라 별도 포팅 없음. 2026-11-24: 저장소 이동(dotoricode → dotoridot) — key_files 무변 |
 | `hjongc-humanizer-kr` | [hjongc/humanizer-kr](https://github.com/hjongc/humanizer-kr) | reference | 미채택 — 원본과 고도 중복. v0.3.x(2026-11)의 voice profile 영구 저장은 개인화 설정(deferred 부류), span-level 편집은 이미 본 프로젝트 기본 구조 (사유는 references.json) |
-| `slop-rewrite` | [byungjunjang/slop-rewrite](https://github.com/byungjunjang/slop-rewrite) | benchmark | fidelity 검사기 코어 포팅(fidelity.js — 지어낸 수치·인용·자리표시자 S1 / 사라진 것 S2, 문서 단위 다중집합 비교). 원칙·문체·취향 3층위는 deferred(개인화 부류) |
+| `slop-rewrite` | [byungjunjang/slop-rewrite](https://github.com/byungjunjang/slop-rewrite) | benchmark | fidelity 검사기 코어 포팅(fidelity.js — 지어낸 수치·인용·자리표시자 S1 / 사라진 것 S2, 문서 단위 다중집합 비교). 2026-11-26: AT-72 요청자 꼬리표(S1 regex, 사람 192편 0건·AI 초안 18편 중 11편)를 K-5로 포팅. AT-69~71(S3 human 행)·AT-60 장소 빗대기 확장은 deferred. 원칙·문체·취향 3층위는 deferred(개인화 부류) |
 | `daleseo-korean-skills` | [DaleSeo/korean-skills](https://github.com/DaleSeo/korean-skills) | reference | 미채택 — humanizer는 upstream 계열, grammar-checker·style-guide는 맞춤법·스타일 일관성 축이라 목적이 다름 |
 | `k-humanizer` | [evergreentree97/K-Humanizer](https://github.com/evergreentree97/K-Humanizer) | reference | 번역 모드 프롬프트 포팅(engine/prompt.js translate() — 사실·약속 보존 계약, 상충 처리 규약, 한국어 우선 구성, 레지스터 기본값). 웹 '번역(EN→KO)' 작업 토글과 /api/prompt·humanize_prompt의 mode=translate |
 | `kordoc` | [chrisryugj/kordoc](https://github.com/chrisryugj/kordoc) | reference | 미채택 — 공문서 포맷 변환(HWP·HWPX) 도구로 윤문·AI-tell 영역이 아님 |
