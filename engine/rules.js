@@ -17,6 +17,14 @@
  *       - H-1 paragraph-scoped connective clustering, E-2 narrowed to passive
  *         progressive (~되고 있다), D-8 settling variants gated at 2+,
  *         D-10 "~인 셈이다", C-11 detect aligned with its 3+ fix threshold
+ *   - Upstream sync (2026-11, im-not-ai v2.4.8 + isaac 1.5.1 + slop-rewrite):
+ *       - C-11 isaac §37 v1.5.1: 30문장+ 문서는 횟수 대신 비율 게이트
+ *         ("연결어미 뒤 쉼표가 든 문장" 1/5 초과만 — 사람 중앙값 15%) +
+ *         fix의 앞 절 30자+ 호흡 쉼표 보존(주어 변경·의미 변화는 프롬프트로)
+ *       - K-5 slop-rewrite AT-72 요청자 꼬리표 (S1, detect-only — 최신 모델
+ *         초안 18편 중 11편, 사람 글 192편 0건)
+ *       - v2.4.8 처방 방향 정정(F-5·E-5·C-8)은 프롬프트 측(prompt.js)만 —
+ *         패턴 ID와 탐지 규칙은 upstream이 그대로 유지
  *   - Production corpus round (2026-10, 65-doc wiki corpus, 2,175 findings —
  *     only false-positive classes below surfaced):
  *       - Protected-span masking: backtick inline code (verified UI labels)
@@ -252,8 +260,8 @@
         // 2026-10: detect aligned with the 3+ fix threshold. isaac §37 (v1.4.0)
         // rates 3~5 as tell-worthy only alongside other tells, 6+ standalone —
         // 3+ is the middle ground available without cross-rule conditioning.
-        var c = count(t, /([가-힣](?:고|며|지만|면서|아서|어서|으나|는데)),(?=\s*[가-힣A-Za-z])/g);
-        return c >= 3 ? c : 0;
+        // 2026-11: isaac §37 v1.5.1 — 30문장+ 문서는 횟수 대신 비율로 (c11DocGate).
+        return c11DocGate(t, count(t, C11_RE));
       },
       fix: function (t) {
         // Prescription: trigger on clusters (upstream: 6+ = strong signal;
@@ -261,18 +269,27 @@
         // 2026-10 corpus guards (65문서 코퍼스 299건 적용 무회귀): 헤딩 줄,
         // 표 행, 링크 라벨/[url] 구간은 건드리지 않는다. 백틱·따옴표 내부는
         // analyze/polish의 보호 스팬 마스킹이 먼저 걸러준다.
-        var re = /([가-힣](?:고|며|지만|면서|아서|어서|으나|는데)),(?=\s*[가-힣A-Za-z])/g;
-        var c = count(t, re);
-        if (c < 3) return { text: t, applied: 0 };
+        // 2026-11 (isaac §37 v1.5.1): detect와 같은 장문 비율 게이트 + 앞 절
+        // 30자+ 호흡 쉼표 보존. 주어 변경·빼면 의미가 달라지는 곳은 문맥
+        // 판단이라 프롬프트 룰북 C-11 라인의 LLM 영역.
+        var c = count(t, C11_RE);
+        if (c11DocGate(t, c) === 0) return { text: t, applied: 0 };
         var n = 0;
         var out = t.split('\n').map(function (line) {
           if (/^[ \t]*#/.test(line) || isTableRow(line)) return line;
           var links = [], lm, linkRe = /\[[^\]\n]*\]\([^)\n]*\)/g;
           while ((lm = linkRe.exec(line)) !== null) links.push([lm.index, lm.index + lm[0].length]);
-          return line.replace(re, function (m, p1, offset) {
+          return line.replace(C11_RE, function (m, p1, offset) {
             for (var i = 0; i < links.length; i++) {
               if (offset >= links[i][0] && offset < links[i][1]) return m;
             }
+            // 앞 절(직전 쉼표·문장부호부터, 접속어미 포함)이 서른 자+면 쉼표가
+            // 호흡 표지다 — 남긴다 (isaac §37 v1.5.1).
+            var before = line.slice(0, offset);
+            var clause = before.slice(Math.max(
+              before.lastIndexOf(','), before.lastIndexOf('.'),
+              before.lastIndexOf('!'), before.lastIndexOf('?'), -1) + 1) + p1;
+            if (clause.replace(/\s/g, '').length >= 30) return m;
             n++; return p1;
           });
         }).join('\n');
@@ -612,6 +629,19 @@
       id: 'K-4', cat: 'K', name: '상투적 긍정 마무리', severity: 2,
       src: ["isaac-humanizer-ko"],
       detect: function (t) { return count(t, /행보가 기대|귀추가 주목|궁극적으로|앞날이 기대/g); }
+    },
+    {
+      // slop-rewrite AT-72 (2026-11-26, S1) — AI 초안 본문 뒤에 붙는 요청자를
+      // 향한 해명 꼬리표("기한은 자료에 없어 넣지 않았습니다"·"제가 덧붙인
+      // 것"). upstream 실측: 통제 없이 쓴 최신 모델 초안 18편 중 11편, 사람
+      // 글 192편·윤문 결과 63편 0건 → 임계 1회. 문장 삭제라 detect-only.
+      // 예외(upstream §4): 글 전체가 요청자에게 보내는 답장·메일이면 남긴다 —
+      // 장르 판단이라 프롬프트 K 카테고리 헤더의 장르 게이트로 운용.
+      id: 'K-5', cat: 'K', name: '요청자를 향한 꼬리표', severity: 1,
+      src: ["slop-rewrite"],
+      detect: function (t) {
+        return count(t, /(?:자료|메모|원문|요청)에\s?(?:없어|없던|없는)[^.!?\n]{0,30}(?:넣지\s?않았|덧붙였|추가했)|임의로\s?(?:넣지|채우지|추가하지)\s?않았|제가\s(?:[가-힣]+\s){0,3}(?:덧붙인|채워\s?둔|정리해\s?넣은|붙인)\s?(?:것|항목|내용|자리)|알려\s?주시면\s[^.!?\n]{0,30}(?:완성하겠습니다|완성본으로)|(?:버전|요약본|문구|분위기|길이|톤)[^.!?\n]{0,30}(?:바꿔|만들어|정리해|다듬어)\s?드(?:릴|리)/g);
+      }
     }
   ];
 
@@ -628,6 +658,25 @@
   // threat-model tables gloss every row and deprecation records live in cells.
   function isTableRow(line) {
     return /^[ \t]*\|/.test(line);
+  }
+
+  // C-11 (2026-11, isaac §37 v1.5.1): 연결어미 직후 쉼표 — detect·fix 공용.
+  var C11_RE = /([가-힣](?:고|며|지만|면서|아서|어서|으나|는데)),(?=\s*[가-힣A-Za-z])/g;
+
+  // 장문 비율 게이트 — isaac §37 v1.5.1: 서른 문장이 넘는 글은 횟수 대신
+  // "연결어미 뒤 쉼표가 든 문장" 비율로 본다(다섯에 하나 초과일 때만 —
+  // im-not-ai 사람 코퍼스 중앙값 15%). 그 아래는 사람 수준의 쉼표라 통째로
+  // 떼면 1만 자+ 글의 사람 문장까지 티로 잡는다. 소수점(37.5%)은 종결부호가
+  // 아니므로 문장 셈에서 먼저 지운다.
+  function c11DocGate(text, c) {
+    if (c < 3) return 0;
+    var sents = text.replace(/\d\.\d/g, '0').split(/[.!?](?:\s+|$)/)
+      .filter(function (s) { return s.trim(); });
+    if (sents.length > 30) {
+      var hits = sents.filter(function (s) { return count(s, C11_RE) > 0; }).length;
+      if (hits / sents.length <= 0.2) return 0;
+    }
+    return c;
   }
 
   // A-3: 토큰이 위치 명사로 끝나는지 — "S12 줄"·"S12줄" 같은 문자적 위치

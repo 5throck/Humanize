@@ -1,7 +1,7 @@
 {
   "$note": "출처 레지스트리 (SSOT). 규칙·프롬프트·테스트가 어느 저장소에서 왔는지, 무엇을 채택했고 무엇을 보류했는지 기록한다. 사용 규칙은 REFERENCES.md, 드리프트 점검은 scripts/ref-check.mjs. rules.js 규칙의 src 필드 값은 이 파일 sources[].id와 일치해야 하고, src가 없으면 default_source로 간주한다.",
   "version": 1,
-  "updated": "2026-11-19",
+  "updated": "2026-11-26",
   "default_source": "im-not-ai",
   "sources": [
     {
@@ -69,6 +69,13 @@
             "lexicon": "lexicon.js + lexicon-data.js 신설, app.js 단일/청킹 경로, serve.ts, mcp-server.mjs"
           },
           "date": "2026-11-19"
+        },
+        {
+          "what": "v2.4.8 동기화 (2026-11-26) — '읽기 어려워지는 처방 3곳 정정'(패턴 ID·탐지 규칙 불변, 처방 문구만): F-5 '-적' 탈락을 조건부 허용으로 좁힘 — 기본은 풀어쓰기('실천적 기반'→'실천의 기반'), '-적'만 떼는 것은 굳은 두 낱말 합성어('학술적 연구'→'학술 연구')일 때만, 조사 없는 명사 3개+ 연쇄는 A-13 충돌로 금지(기존 포팅 라인의 '명사+명사' 처방이 정정 대상 그 자체였음). E-5 '관형절로 압축' 삭제(A-18 긴 좌향 수식 충돌) — 우리 룰북에 E-5 라인이 없어 미포함 확인만. C-8 해체 시에도 대조·인과 표지('그런데'·'그래서')는 하나 남긴다(H-1과 같은 원칙). 계기: arXiv 2610.29162 — 빼는 쪽으로만 고치면 문장을 잇던 기능어가 먼저 빠진다.",
+          "prompt": [
+            "C-8/F-5 룰북 라인"
+          ],
+          "date": "2026-11-26"
         }
       ],
       "deferred": [
@@ -80,7 +87,7 @@
         "청크 경계 이음매 국소 패치(경계 전후 2문단만 monolith 재호출) — 추가 LLM 호출 1회 비용. 웹 LLM 모드는 청크 헤더의 '서두·결말 새로 만들기 금지'로 1차 방어, 불만 쌓이면 도입",
         "어휘 레이어 restore 경로(v2.4.2~) — 원문에 없던 restore=true 표제어가 생긴 문장을 원문으로 되돌리는 기능. restore_modality.py의 문장 정렬·유사도·분할/병합 판정 기계에 의존해 미포팅. 우리 절차 3 ③·자체검증 ⑥('새 티 주입 없음')이 같은 실패 모드를 프롬프트 차원에서 방어. 실측 데이터가 쌓이면 정렬기 도입 재검토"
       ],
-      "last_checked": "2026-11-19"
+      "last_checked": "2026-11-26"
     },
     {
       "id": "isaac-humanizer-ko",
@@ -136,6 +143,16 @@
             "D-8/D-10/E-2 룰북 라인"
           ],
           "date": "2026-10-22"
+        },
+        {
+          "what": "v1.5.1 동기화 (2026-11-26) — §37(C-11) 장문 기준 비율화: 서른 문장이 넘는 글은 '연결어미 뒤 쉼표가 든 문장'이 다섯에 하나를 넘을 때만(im-not-ai 사람 코퍼스 중앙값 15% 근거 — 1만 자+ 글에서 사람 쉼표까지 잡던 오탐 수정). 규칙 detect·fix에 게이트로 반영. 쉼표 유지 예외 중 '앞 절 30자+'는 fix 가드로, '뒤 절 주어 변경·빼면 의미가 달라지는 곳'은 문맥 판단이라 프롬프트 룰북 라인으로. 학술 초록 대조의 용어 확인 항목은 장르 참고 파일 축이라 미반영(deferred와 같은 부류).",
+          "rules": [
+            "C-11"
+          ],
+          "prompt": [
+            "C-11 룰북 라인"
+          ],
+          "date": "2026-11-26"
         }
       ],
       "deferred": [
@@ -144,9 +161,9 @@
         "군집 폭 grade 반영(카테고리 3개+ 시 하향) — 등급 시맨틱 변경이라 보류",
         "§19 '해당' 대명사 용법·주어 과잉(당신은/우리는) — 문맥 판단 필요('해당 업체의'는 공문 정상 표현)",
         "§23 '~을 진행하다/수행하다' 동사 환원, '~것입니다' 남발 — 명사의 타동사화 가능 판단이 필요('절차를 진행한다'→'절차한다' 오류)해 다음 회차 검토",
-        "§12 가짜 범위 척도 판정(양 끝이 같은 척도면 정상), 장르 참고 파일(발표 대본 spoken-scripts·학술 원고 academic-papers) — 장르 파라미터 도입 시 재검토"
+        "§12 가짜 범위 척도 판정(양 끝이 같은 척도면 정상), 장르 참고 파일(발표 대본 spoken-scripts·학술 원고 academic-papers) — 장르 파라미터 도입 시 재검토. v1.5.1의 초록 대조 용어 확인(본문 정의 용어를 일반어로 바꾸지 않음)도 이 축"
       ],
-      "last_checked": "2026-10-22"
+      "last_checked": "2026-11-26"
     },
     {
       "id": "patina",
@@ -246,12 +263,12 @@
     },
     {
       "id": "dotori-korean-humanizer",
-      "name": "dotoricode/korean-humanizer",
-      "repo": "dotoricode/korean-humanizer",
-      "url": "https://github.com/dotoricode/korean-humanizer",
+      "name": "dotoridot/korean-humanizer",
+      "repo": "dotoridot/korean-humanizer",
+      "url": "https://github.com/dotoridot/korean-humanizer",
       "role": "reference",
       "license": "확인 필요 (저장소 LICENSE)",
-      "summary": "실무 유즈케이스(이메일·SNS·카피) 중심 한국어 휴머나이저. eval/ 디렉터리에 장르별 before/after fixture 체계가 잘 갖춰져 있다.",
+      "summary": "실무 유즈케이스(이메일·SNS·카피) 중심 한국어 휴머나이저. eval/ 디렉터리에 장르별 before/after fixture 체계가 잘 갖춰져 있다. 2026-11-24 저장소 이동: dotoricode → dotoridot(기존 URL은 301 리다이렉트).",
       "key_files": [
         "SKILL.md",
         "eval/README.md"
@@ -281,6 +298,10 @@
         {
           "what": "2026-10-29 교정 지침 보강 검토 — 원문 근거 없는 거창한 의의 부여(이정표·새로운 지평), 관형절·이중 조사·번역체 줄표·연결어미 쉼표 지침 추가. 규칙 자체는 기존 채택분(A-19·C-11·J-3·A-21)의 재수록이고 '이정표·새로운 지평'은 im-not-ai 어휘 레이어(v2.4.x)가 커버 — 별도 포팅 없음. '주어가 바뀌거나 의미 구분·호흡에 필요한 쉼표는 유지'는 C-11 fix의 연결어미 한정과 일치(이미 충족). 나머지 변경은 korean-humanizer-deep 스킬(Codex file-context)·패키징·eval/deep 기록 — 웹 포트 무관.",
           "date": "2026-11-19"
+        },
+        {
+          "what": "2026-11-24 푸시 검토 — README 제목·도입부 개선, 한국어 AI 글 교정 FAQ·교정 가이드, GitHub Pages 배포 추가. key_files(SKILL.md 2026-10-29, eval/README.md 2026-10-10) 무변 — 포팅 사항 없음. 이번 회차에서 저장소 이동(dotoricode → dotoridot)을 확인해 repo·url을 갱신.",
+          "date": "2026-11-26"
         }
       ],
       "deferred": [
@@ -288,7 +309,7 @@
         "정량 수정 한도 폐지(v1.1: 문단 3곳/문장 20% 제한 삭제) — upstream(im-not-ai) 변경률 게이트(30% 경고/50% 중단)와 충돌. SSOT인 upstream 쪽 유지",
         "출력 계약(## Humanized + 주요 변경 5개 섹션)·Agensi MCP 전환 — 스킬 배포 형식 문제로 웹 포트 무관"
       ],
-      "last_checked": "2026-11-19"
+      "last_checked": "2026-11-26"
     },
     {
       "id": "hjongc-humanizer-kr",
@@ -324,16 +345,28 @@
             "fidelity": "fidelity.js 전체 + serve.ts/mcp-server.mjs/app.js 노출"
           },
           "date": "2026-11-19"
+        },
+        {
+          "what": "AT-72 '요청자를 향한 꼬리표' 규칙 포팅 (2026-11-26) — ai-tells-ko 67→71행 회차에서 유일한 regex 행(S1). AI 초안 본문 뒤에 붙는 요청자용 해명 꼬리표('자료에 없어 넣지 않았습니다'·'제가 덧붙인 것'·'~ 다듬어 드릴')을 upstream 정규식 그대로 K-5로 신설 — 임계 1회, detect-only(문장 삭제라 LLM 영역). upstream 실측: 통제 없이 쓴 최신 모델 초안 18편 중 11편, 사람 글 192편·윤문 결과 63편 0건. '글 전체가 요청자에게 보내는 답장·메일이면 예외'는 장르 판단이라 프롬프트 K-5 라인과 K 헤더의 장르 게이트로 운용.",
+          "rules": [
+            "K-5"
+          ],
+          "prompt": [
+            "K-5 룰북 라인"
+          ],
+          "date": "2026-11-26"
         }
       ],
       "deferred": [
         "F4 표제·F5 문단 수 비율 게이트·F8 표 구조·F9 각주 위치 검증 — 구조는 청킹이 보존하고 merge가 변경률을 보고하는 이 프로젝트 구조와 겹침. 필요하면 다음 회차",
         "합성 수치 canon(1억 2,000만 → 120,000,000) — 첫 마디만 곱하는 단순화로 포팅, 합성 마디 곱은 미포팅",
         "원칙·문체 가이드·취향 3층위(styleguide-builder·taste-builder) — 개인화 설정, hjongc voice profile·dotori brand voice와 같은 deferred 부류",
-        "AT-39 검수 상태 혼입 등 S1 literal 몇 개 — 다음 규칙 회차 검토 후보"
+        "AT-39 검수 상태 혼입 등 S1 literal 몇 개 — 다음 규칙 회차 검토 후보",
+        "AT-69 지침 문체·AT-70 접어 넣은 명사구·AT-71 공급자 말 (2026-11-26, S3 human 행) — 문맥 판단 필요로 규칙화 불가, 프롬프트 반영 후보. upstream 실측에서도 사람·AI 코퍼스가 갈리지 않아 사용자 결정으로 넣은 행(결정 기록 0025)",
+        "AT-60 확장 — 순서·시점을 장소로 빗대기('첫 번째 장소는') — D-14 감각 술어·직역화 축과 겹쳐 다음 규칙 회차 검토"
       ],
       "not_adopted_reason": "",
-      "last_checked": "2026-11-19"
+      "last_checked": "2026-11-26"
     },
     {
       "id": "daleseo-korean-skills",
@@ -389,8 +422,8 @@
         "README.md"
       ],
       "adopted": [],
-      "not_adopted_reason": "문서 포맷 변환 도구로 윤문·AI-tell 영역이 아니다. 다만 MCP 서버 설계는 참고될 만함(ADR-0002와 같은 제로 디펜던시 접근인지는 미확인).",
-      "last_checked": "2026-11-19"
+      "not_adopted_reason": "문서 포맷 변환 도구로 윤문·AI-tell 영역이 아니다. 다만 MCP 서버 설계는 참고될 만함(ADR-0002와 같은 제로 디펜던시 접근인지는 미확인). 2026-11-24~26 푸시(v4.25.x, HWP 패치·OCR dewarp 등)도 같은 영역 — 여전히 무관.",
+      "last_checked": "2026-11-26"
     },
     {
       "id": "im-not-strange-ai",

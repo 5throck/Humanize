@@ -185,6 +185,19 @@ check('E-2 excludes 가지고 있다 (A-7 territory)',
 check('D-10 includes 인 셈이다 variant', HR.analyze('이 프로젝트는 사실상 끝난 인 셈이다.\n지난 노력도 다시 시작한 인 셈이다.').findings.some(f => f.id === 'D-10'));
 check('C-11 detect silent below 3 (aligned with fix threshold)',
   !HR.analyze('밥을 먹고, 산책을 했고, 책을 읽으며 하루를 마쳤다.').findings.some(f => f.id === 'C-11'));
+// isaac §37 v1.5.1 — 30문장+ 장문은 횟수 대신 비율(든 문장 1/5 초과만).
+const c11LowRatio = HR.analyze(
+  Array.from({ length: 40 }, (_, i) => `항목 ${i + 1}의 기준값을 점검했다.`).join(' ') +
+  ' 밥을 먹고, 산책을 했고, 책을 읽으며 마쳤고, 잠들었다.');
+check('C-11 long-doc ratio gate: 41문장에 든 문장 1개(≈2%)는 사람 수준 — silent',
+  !c11LowRatio.findings.some(f => f.id === 'C-11'), JSON.stringify(c11LowRatio.findings.map(f => f.id)));
+check('C-11 long-doc ratio gate: polish도 사람 수준 장문은 그대로',
+  HR.polish(Array.from({ length: 40 }, (_, i) => `항목 ${i + 1}의 기준값을 점검했다.`).join(' ') +
+    ' 밥을 먹고, 산책을 했고, 책을 읽으며 마쳤고, 잠들었다.').text.includes('먹고,'));
+const c11HighRatio = HR.analyze(Array.from({ length: 40 }, (_, i) =>
+  i % 3 === 0 ? `항목 ${i + 1}을 검토했고, 결함을 표시했다.` : `항목 ${i + 1}의 기준값을 점검했다.`).join(' '));
+check('C-11 long-doc ratio gate: 든 문장이 1/3이면 티 — fires',
+  c11HighRatio.findings.some(f => f.id === 'C-11'), JSON.stringify(c11HighRatio.findings.map(f => f.id)));
 
 console.log('# benchmark: J-4 markup leakage / J-5 thematic breaks');
 const j4a = HR.analyze('결론은 다음과 같다.\n```');
@@ -210,6 +223,15 @@ const k3 = HR.analyze('솔직히 말해서 그건 아니다. 솔직히 말하자
 check('K-3 fires at 2+ fake-candor', k3.findings.some(f => f.id === 'K-3'), JSON.stringify(k3.findings));
 const k4 = HR.analyze('앞으로의 행보가 기대된다.');
 check('K-4 detects stock closing', k4.findings.some(f => f.id === 'K-4'), JSON.stringify(k4.findings));
+// slop-rewrite AT-72 — 요청자를 향한 꼬리표 (S1, 임계 1회).
+const k5 = HR.analyze('보고서 초안을 첨부합니다. 기한은 자료에 없어 넣지 않았습니다. 남은 과제는 제가 덧붙인 것이니 고쳐 쓰시면 됩니다.');
+check('K-5 detects requester-facing tail tag (slop-rewrite AT-72)',
+  k5.findings.some(f => f.id === 'K-5') && k5.findings.find(f => f.id === 'K-5').count >= 2, JSON.stringify(k5.findings));
+check('K-5 silent on ordinary report sentences',
+  !HR.analyze('이 자료에 없는 항목은 본문에 설명한다. 문구는 원문 그대로 둔다.').findings.some(f => f.id === 'K-5'),
+  JSON.stringify(HR.analyze('이 자료에 없는 항목은 본문에 설명한다. 문구는 원문 그대로 둔다.').findings.map(f => f.id)));
+check('K-5: quoted tail tag is masked (evidence, not voice)',
+  !HR.analyze('모델이 "기한은 자료에 없어 넣지 않았습니다"라고 덧붙였다').findings.some(f => f.id === 'K-5'));
 
 console.log('# benchmark: E-3 / E-4 distribution rules');
 const e3pos = HR.analyze([
@@ -240,7 +262,7 @@ const human = [
   '세부 시행령은 아직 조율 중이다.'
 ].join('\n');
 const humanRes = HR.analyze(human);
-const newIds = ['A-10', 'H-1', 'J-4', 'J-5', 'K-1', 'K-2', 'K-3', 'K-4', 'E-2', 'E-3', 'E-4'];
+const newIds = ['A-10', 'H-1', 'J-4', 'J-5', 'K-1', 'K-2', 'K-3', 'K-4', 'K-5', 'E-2', 'E-3', 'E-4'];
 const fired = humanRes.findings.filter(f => newIds.includes(f.id)).map(f => f.id);
 check('new rules silent on human report', fired.length === 0, JSON.stringify(humanRes.findings));
 check('human report overall clean', humanRes.total === 0, JSON.stringify(humanRes.findings));
@@ -345,6 +367,11 @@ const c11link = '[성능을 높이고, 비용을 줄이며, 품질을 지키고]
 check('C-11 fix: 링크 라벨 쉼표 보존', HR.polish(c11link).text === c11link, HR.polish(c11link).text);
 check('C-11 fix: 산문 쉼표는 여전히 제거', HR.polish('밥을 먹고, 산책을 했고, 책을 읽으며 하루를 마쳤고, 잠들었다.')
   .text === '밥을 먹고 산책을 했고 책을 읽으며 하루를 마쳤고 잠들었다.');
+// isaac §37 v1.5.1 — 앞 절 30자+ 쉼표는 호흡 표지라 보존한다.
+const c11longClause = '보고서 초안은 지난 두 주에 걸쳐 작성되었고 내부 검토 절차까지 함께 마쳤고, 별도 첨부는 정리했고, 부록은 추렸고, 인쇄는 다음 회의에서 다루기로 했다.';
+const c11longOut = HR.polish(c11longClause).text;
+check('C-11 fix: 앞 절 30자+ 쉼표는 보존(isaac §37 v1.5.1)', c11longOut.includes('마쳤고, 별도'), c11longOut);
+check('C-11 fix: 짧은 절 쉼표는 여전히 제거', !c11longOut.includes('정리했고,') && !c11longOut.includes('추렸고,'), c11longOut);
 
 // Masking round-trip — spans must come back verbatim, and a genuine tell
 // outside quotes is fixed while quoted copy inside is left alone.
@@ -640,6 +667,17 @@ check('translate: no-banned-words stance + rulebook pass',
   tPrompt.includes('금지된 단어는 없다') && tPrompt.includes('### A. 번역투'));
 check('translate: polish prompt unchanged',
   HP.system('auto').includes('윤문 전문가') && !HP.system('auto').includes('번역·현지화'));
+
+// 2026-11 sync — im-not-ai v2.4.8 처방 정정 + isaac §37 v1.5.1 + slop-rewrite AT-72.
+const sPrompt = HP.system('report');
+check('prompt: F-5 v2.4.8 처방 — 풀어쓰기 기본, 합성어 한정(구 명사+명사 처방 제거)',
+  sPrompt.includes('실천의 기반') && sPrompt.includes('두 낱말 합성어') && !sPrompt.includes('전략 함의'));
+check('prompt: C-8 해체 시 대조·인과 표지 하나 유지 (v2.4.8)',
+  sPrompt.includes('대조·인과를 잇던 표지'));
+check('prompt: C-11 쉼표 유지 예외 + 장문 비율 (isaac §37 v1.5.1)',
+  sPrompt.includes('앞 절이 30자+') && sPrompt.includes('1/5'));
+check('prompt: K-5 요청자 꼬리표 (slop-rewrite AT-72)',
+  sPrompt.includes('요청자를 향한 꼬리표') && sPrompt.includes('답장·메일'));
 
 // ---------------------------------------------------------------------------
 // Fidelity (fidelity.js) — JS port of slop-rewrite check_fidelity.py core
