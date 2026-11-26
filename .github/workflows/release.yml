@@ -1,0 +1,56 @@
+name: Release
+
+# Every merged batch on main gets the next patch tag and a GitHub Release
+# with auto-generated notes. A manually pushed tag (e.g. a feature version
+# like v1.1.0) always wins: if HEAD is already tagged, this workflow skips —
+# no double-tagging, no release for an already-released commit.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  # Queue rather than cancel so two quick merges tag in order.
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # git describe needs the full history to see the last tag.
+          fetch-depth: 0
+
+      - name: Compute next tag (patch bump)
+        id: ver
+        run: |
+          LAST=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          if [ -z "$LAST" ]; then
+            NEXT=v1.0.0
+          elif [ "$(git rev-parse "$LAST^{commit}")" = "$(git rev-parse HEAD)" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            NEXT=$(echo "$LAST" | awk -F. -v OFS=. '{$NF++; print}')
+          fi
+          echo "tag=$NEXT" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag & GitHub Release
+        if: steps.ver.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "tag $TAG already exists — skipping"
+            exit 0
+          fi
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --generate-notes \
+            --title "$TAG"

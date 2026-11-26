@@ -233,6 +233,8 @@ bun scripts/eval.mjs        # 프롬프트 오프라인 평가 (아래 「프롬
 
 push(main)·PR마다 GitHub Actions가 **ubuntu·macOS·Windows 세 환경 매트릭스**에서 스모크 테스트(`bun test.mjs`), 문법 검사(`bun build`로 app.js·engine/ 모듈·mcp-server.mjs), `bun build serve.ts`를 실행합니다(`.github/workflows/ci.yml`). 변경은 main에 직접 푸시하기보다 **브랜치 → PR → CI 통과 → 병합** 흐름을 권장합니다.
 
+main에 병합될 때마다 Release 워크플로가 다음 patch 태그(`v1.0.0` → `v1.0.1` …)와 커밋 목록이 담긴 GitHub Release를 자동으로 만듭니다(`.github/workflows/release.yml`). 기능 단위 버전(`v1.1.0` 등)은 태그를 직접 푸시해 올릴 수 있고, HEAD가 이미 태그된 커밋이면 자동 태깅은 건너뜁니다.
+
 아키텍처 결정 기록(ADR)과 기능 설계 문서는 [docs/](docs/README.md)에서 관리합니다. 출처별 채택 내역은 `references.json`(SSOT), 아키텍처 결정은 docs/, 사용자 안내는 이 문서가 담당합니다.
 
 ## 파일 구성
